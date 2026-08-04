@@ -245,7 +245,8 @@ same handful of problems — inconsistent encodings, Excel workbooks with one
 sheet per table, files that must be filtered by S3 tag, needing to know which
 source file a row came from. If your sources do not have those problems, ignore
 the module and write your own job. The contract above is what matters; how you
-satisfy it is not inspected.
+satisfy it is not inspected. The S3 `ingest=true` tag contract these helpers
+honour is documented in the toolkit's `docs/INGEST.md`.
 
 The template's `scripts/seed_bronze.py` is a working end-to-end example: it
 creates synthetic bronze tables that the shipped silver models build on, so a

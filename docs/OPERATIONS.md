@@ -133,8 +133,9 @@ g3dt indexd register --s3-paths s3://bucket/study/ --study mystudy --env test
 
 Then **prove the files actually download** before shipping links to anyone.
 Registration succeeding does not mean a user can fetch the file — that needs
-`read-storage` on the record's authz resource, a separate grant. This check does
-not exist in `g3dt` yet — do it manually; see
+`read-storage` on the record's authz resource, a separate grant. Verify with
+`g3dt indexd check-download` (toolkit >= 2.3.0; the interpretation table for
+its results is in the toolkit README). Background in
 [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 8.
 
 ---
