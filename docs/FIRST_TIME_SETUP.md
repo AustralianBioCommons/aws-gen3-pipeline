@@ -480,7 +480,8 @@ and the error table in [CONFIG_GUIDE.md section 5](CONFIG_GUIDE.md#5-validate-be
 
 | Doc | What it's for |
 |---|---|
-| [../README.md](../README.md) | The config model + the quickstarts |
+| [../README.md](../README.md) | What the pipeline is and the config model |
+| [QUICKSTART.md](QUICKSTART.md) | The copy-paste quickstarts |
 | [WRAPPER_GUIDE.md](WRAPPER_GUIDE.md) | Creating, operating, and upgrading a private deployment wrapper |
 | [CONFIG_GUIDE.md](CONFIG_GUIDE.md) | Authoring `config/<projectId>.<env>.json`, field by field; CodeConnections setup |
 | [VPC_NETWORKING.md](VPC_NETWORKING.md) | The pipeline's network, CIDR choice, `public` vs `peered` Gen3 access |

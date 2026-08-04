@@ -3,7 +3,7 @@
 The recommended way to run this pipeline in production is from a small
 **private deployment wrapper** repo — not from a fork or checkout of this one.
 This guide covers creating a wrapper, operating it day to day, and upgrading
-it. The quickstarts live in [../README.md](../README.md); this is the detail
+it. The quickstarts live in [QUICKSTART.md](QUICKSTART.md); this is the detail
 behind them.
 
 ## What a deployment wrapper is, and why
@@ -215,7 +215,8 @@ added upstream is versioned and tested for all of them.
 
 | Doc | What it's for |
 |---|---|
-| [../README.md](../README.md) | The config model + the quickstarts |
+| [../README.md](../README.md) | What the pipeline is and the config model |
+| [QUICKSTART.md](QUICKSTART.md) | The copy-paste quickstarts |
 | [FIRST_TIME_SETUP.md](FIRST_TIME_SETUP.md) | Tools, AWS SSO, bootstrap, post-deploy steps, first release |
 | [CONFIG_GUIDE.md](CONFIG_GUIDE.md) | Authoring the per-env config, field by field |
 | [../wrapper-template/README.md](../wrapper-template/README.md) | The README every wrapper is born with (its quickstarts) |

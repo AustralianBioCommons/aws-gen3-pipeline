@@ -446,7 +446,8 @@ Common errors:
 | Doc | What's in it |
 |---|---|
 | [`FIRST_TIME_SETUP.md`](FIRST_TIME_SETUP.md) | End-to-end first-time on-ramp: tools, SSO, deploy, post-deploy steps, `g3dt`, first release |
-| [`../README.md`](../README.md) | Deploy workflow, INPUT/OUTPUT model summary, SSM tree |
+| [`../README.md`](../README.md) | What the pipeline is and the INPUT/OUTPUT model |
+| [`QUICKSTART.md`](QUICKSTART.md) | Deploy workflow, naming conventions, SSM tree |
 | [`VPC_NETWORKING.md`](VPC_NETWORKING.md) | The created network's full design, Gen3 API access modes, security posture, deploy checks |
 | [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.md) | Stack-by-stack architecture, common tasks, troubleshooting |
 | [`example-config.json`](example-config.json) | Sanitised template for a brand-new project |

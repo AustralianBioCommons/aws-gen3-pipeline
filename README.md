@@ -1,148 +1,135 @@
-# Gen3 AWS Data Pipeline
+# AWS Gen3 Pipeline
 
-CDK TypeScript project for deploying the Gen3 data pipeline infrastructure on AWS.
+[![CI](https://github.com/AustralianBioCommons/aws-gen3-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/AustralianBioCommons/aws-gen3-pipeline/actions/workflows/ci.yml)
 
-This is a **GitHub template repository** (use the *Use this template* button, or —
-recommended — generate a private deployment wrapper with the quickstart below),
-licensed **Apache-2.0**.
+**A production data pipeline for [Gen3](https://gen3.org/) data commons, deployed to
+your AWS account with one command.** It takes research metadata from "a spreadsheet a
+researcher filled in" to "validated, versioned, queryable data the commons can serve" —
+with every step automated, auditable, and reproducible.
 
-## How configuration works (read this first)
+Deploy it by generating a small private **deployment wrapper** (your config, nothing
+else) and running `./deploy.sh` — see the **[Quickstart](docs/QUICKSTART.md)**.
 
-There are exactly two kinds of values:
+## The problem this solves
 
-- **INPUTS** — things a human chooses: account, region, an optional VPC CIDR, the
-  GitHub connection, EC2 instance type/AMI, the toolkit version pin, the Gen3
-  facts, and any custom Glue jobs. They live in **one file per environment**:
-  `config/<projectId>.<env>.json` (schema: `lib/config.ts`). `config/*.json` is
-  gitignored in this public repo — real configs are committed in your private
-  deployment wrapper (see [docs/WRAPPER_GUIDE.md](docs/WRAPPER_GUIDE.md));
-  `docs/example-config.json` is the template to copy.
-- **OUTPUTS** — names the CDK *creates* (buckets, Glue DBs, workgroup, jobs, pipelines,
-  state machines, the EC2 job box). Nobody authors these. They are derived in one pure
-  function — `deriveNames()` in `lib/names.ts` — and **published to SSM Parameter Store**
-  on deploy under `/<project>/<env>/…`, where every runtime consumer (the CLI, CodeBuild,
-  the EC2 box, Glue) reads them.
+A Gen3 data commons is only as useful as the metadata behind it, and getting that
+metadata in is genuinely hard:
 
-```
-config/<projectId>.<env>.json  ──►  cdk deploy --all -c env=<env>  ──►  SSM /<project>/<env>/…  ──►  CLI / CodeBuild / EC2 / Glue
-     (INPUTS only)            (creates resources +                 (runtime source of truth)
-                               publishes OUTPUT names)
-```
+- Researchers submit study metadata as spreadsheets, which must be checked against the
+  commons' **data dictionary** (the schema defining what a valid subject, sample, or
+  file record looks like) before anything can be published.
+- Raw submissions need cleaning and reshaping — while keeping the original, the
+  cleaned version, and the published version separate and traceable.
+- The portal must never see half-finished data: releases have to be **versioned,
+  validated snapshots**, not whatever the tables happened to contain that day.
+- Doing all this with ad-hoc scripts and manual uploads works exactly until the first
+  mistake, and leaves no audit trail.
 
-Naming conventions (pinned by `test/names.test.ts` — changing them is a breaking change
-for every SSM consumer):
+This repo deploys the automated alternative: a **bronze → silver → gold lakehouse**
+with a hard validation gate and a tagged-release workflow, so publishing data to a
+commons becomes a reviewed, repeatable engineering process.
 
-| Resource class | Pattern | Example |
-|---|---|---|
-| S3 buckets | `<project>-<env>-<suffix>-<account>-<region>` | `etl-test-metadata-123456789012-ap-southeast-2` |
-| Glue databases | `<project>_<env>_<suffix>_db` | `etl_test_raw_silver_db` |
-| Everything else | `<project>-<env>-<suffix>` | `etl-test-dbt-test-and-run` |
+## What it deploys
 
-The SSM tree per env (39 parameters): `meta/*`, `buckets/*`, `glue/db/*`, `athena/*`,
-`release/*`, `roles/*`, `codebuild/*`, `codepipeline/*`, `stepfunctions/*`, `ec2/*`,
-plus the `app/*` Gen3 facts mirrored for the CLI. `test/ssm-publishing.test.ts` is the
-drift guard: every named resource must have a matching SSM parameter or the suite fails.
+Twelve CDK stacks (TypeScript), which together provide:
 
-## Prerequisites
+| Capability | AWS services |
+|---|---|
+| **Lakehouse storage** — bronze (raw, as-submitted), silver (cleaned), gold (publishable) as Iceberg tables | S3, Glue Data Catalog |
+| **Ingestion** — metadata-template workbooks deposited to S3 become bronze tables with row-level provenance; re-uploads are no-ops | Glue python-shell jobs |
+| **Transformation CI/CD** — your dbt repo drives silver/gold; commits build into isolated `ci_` databases, never the real warehouse | CodePipeline, CodeBuild |
+| **Validation gate** — records are rendered to Gen3-shaped JSON and checked against the dictionary; the run **fails** if real errors remain, so green = schema-clean | Step Functions, Glue |
+| **Data releases** — pushing a `data-v*` tag writes a versioned entry to a release ledger and emits structured release JSONs for the Gen3 deployment | CodePipeline, Step Functions |
+| **Interactive SQL** — every layer queryable in its own workgroup | Athena |
+| **Job box** — an auto-stopping EC2 instance for long-running CLI dispatch | EC2, SSM |
+| **Zero name drift** — every created resource name is published to Parameter Store; runtime tooling reads names from there, never from checked-out code | SSM Parameter Store |
+| **Networking** — its own VPC; reaches internet-facing commons out of the box, or peers into a VPN-secured Gen3 VPC | VPC, peering |
 
-- [Node.js](https://nodejs.org/) (current LTS)
-- [AWS CLI](https://aws.amazon.com/cli/) v2, configured with an SSO profile for the target account
-- The CDK CLI is a pinned dev-dependency — use `npx cdk ...`; no global install needed
+<!-- TODO: architecture diagram -->
 
-## Quickstart: create your deployment wrapper (recommended)
+Configuration follows one rule: humans author **inputs** (account, region, Gen3 facts,
+custom Glue jobs) in a single JSON file per environment; every resource **name** is an
+**output**, derived by one pure function and published to SSM. Nobody ever types a
+bucket name twice. Details: [docs/CONFIG_GUIDE.md](docs/CONFIG_GUIDE.md) and
+[docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md).
 
-Adopters deploy from a small **private** wrapper repo that holds only real
-config, custom Glue scripts, and a pinned upstream version — never a copy of
-this code, so upgrades are a version bump, not a merge.
+## What using it looks like
 
-```bash
-git clone --depth 1 https://github.com/AustralianBioCommons/aws-gen3-pipeline.git /tmp/g3p
-/tmp/g3p/scripts/init-wrapper.sh ~/code/my-gen3-deploy --project myproject --envs test
-cd ~/code/my-gen3-deploy
-$EDITOR config/myproject.test.json      # fill in real values — field-by-field: docs/CONFIG_GUIDE.md
-./deploy.sh --profile <your-profile> --env test --diff   # review; drop --diff to deploy
-```
+Once deployed, a normal week on the pipeline:
 
-Full guide → [docs/WRAPPER_GUIDE.md](docs/WRAPPER_GUIDE.md)
+1. **A study team submits metadata.** They fill in a
+   [gen3-metadata-templates](https://github.com/AustralianBioCommons/gen3-metadata-templates)
+   workbook and drop it in the bronze bucket. The ingest Glue job turns each sheet
+   into a bronze table — original values untouched, provenance on every row.
+2. **An engineer evolves the models.** They push to the project's dbt repo (created
+   from [gen3-dbt-template](https://github.com/AustralianBioCommons/gen3-dbt-template));
+   CI builds and tests the models in isolated `ci_` databases; merging builds the real
+   silver and gold tables.
+3. **Validation gates the release.** The validation state machine checks every
+   generated record against the data dictionary and fails loudly on real errors — a
+   green run *means* the data is schema-clean, not just that the machinery ran.
+4. **A release is cut.** Tagging the dbt repo `data-v1.2.0` writes a versioned
+   snapshot to the release ledger and produces the structured release JSONs the Gen3
+   deployment consumes. Rolling back is pointing at the previous version.
+5. **Anyone with access explores in Athena** — at every layer, the whole time:
+   `SELECT * FROM myproject_test_raw_gold_db.subject`.
 
-## Quickstart: deploy from a checkout (contributors/evaluation)
+## The CLI toolkit
 
-```bash
-git clone https://github.com/AustralianBioCommons/aws-gen3-pipeline.git && cd aws-gen3-pipeline
-cp docs/example-config.json config/myproject.test.json   # config/*.json is gitignored here
-$EDITOR config/myproject.test.json      # field-by-field: docs/CONFIG_GUIDE.md
-npm ci && npm test
-npx cdk bootstrap --profile <your-profile>               # first time per account+region only
-npx cdk diff "*" -c env=test --profile <your-profile>
-npx cdk deploy "*" -c env=test --profile <your-profile>
-./scripts/integration_test.sh --profile <your-profile> --env test
-```
-
-Full guide → [docs/FIRST_TIME_SETUP.md](docs/FIRST_TIME_SETUP.md)
-
-## Quickstart: add a custom Glue job
-
-Deployment-specific python-shell jobs are declared in config — no stack code to edit.
+The pipeline is operated with **`gen3-dataops-toolkit`** (`g3dt`, on PyPI). It reads
+everything it needs from the SSM parameters the pipeline publishes, so it requires AWS
+credentials and nothing else — no repo checkout, no config files. A taste:
 
 ```bash
-cp my_job.py glue-scripts/              # in a wrapper: its own glue-scripts/ (overlaid at deploy time)
-$EDITOR config/myproject.test.json
-#   "customJobs": [{ "key": "myJob", "scriptFile": "my_job.py" }]
-npx cdk diff "*" -c env=test --profile <your-profile>    # wrapper: ./deploy.sh ... --diff
-npx cdk deploy "*" -c env=test --profile <your-profile>  # wrapper: ./deploy.sh ...
+pip install gen3-dataops-toolkit
+
+g3dt config show --env test                     # what names am I actually pointed at?
+g3dt dict pull && g3dt dict upload --env test   # deploy a data-dictionary version
+
+g3mt generate <schema> sample -o template.xlsx  # sample metadata workbook (g3mt:
+                                                #   pipx install gen3-metadata-templates)
+aws s3 cp template.xlsx s3://<bronze-bucket>/submissions/<study_id>/
+                                                # ...then run the ingest Glue job
+
+g3dt metadata upload --study mystudy --env test # upload study metadata to the commons
+g3dt indexd register --s3-paths s3://bucket/study/ --study mystudy --env test
+
+g3dt jobs list                                  # what's running right now?
+g3dt pipeline status --env test --which dbtTestAndRun
+g3dt ec2 up --env test --wait                   # start the job box
 ```
 
-Full guide → [docs/CONFIG_GUIDE.md#custom-glue-jobs](docs/CONFIG_GUIDE.md#custom-glue-jobs)
+For a brand-new environment with no real data yet, the dbt template ships
+`scripts/seed_bronze.py`, which creates synthetic bronze tables so you can exercise
+the whole pipeline end-to-end on day one. Day-to-day operations live in
+[docs/OPERATIONS.md](docs/OPERATIONS.md).
 
-## Quickstart: upgrade a wrapper deployment
+## Deploying it
 
-```bash
-cd ~/code/my-gen3-deploy
-echo v1.1.0 > UPSTREAM_VERSION          # read the upstream release notes first
-./deploy.sh --profile <your-profile> --env test --diff
-./deploy.sh --profile <your-profile> --env test
-# rollback = revert the UPSTREAM_VERSION change and deploy again
-```
+This is a **GitHub template repository**, licensed **Apache-2.0**. The recommended
+path is a private deployment wrapper — a tiny repo holding only your config and custom
+Glue jobs, pinned to a released version of this code — so upgrading is a version bump
+and your account IDs never touch a public repo.
 
-Full guide → [docs/WRAPPER_GUIDE.md#upgrading](docs/WRAPPER_GUIDE.md#upgrading)
-
-## Documentation map
+**→ [docs/QUICKSTART.md](docs/QUICKSTART.md)** — create a wrapper, deploy from a
+checkout, add a custom Glue job, upgrade a deployment.
 
 | Doc | Read it when |
 |---|---|
-| [docs/FIRST_TIME_SETUP.md](docs/FIRST_TIME_SETUP.md) | Standing up a brand-new environment |
+| [docs/QUICKSTART.md](docs/QUICKSTART.md) | Deploying this, in any of the supported ways |
+| [docs/FIRST_TIME_SETUP.md](docs/FIRST_TIME_SETUP.md) | Standing up a brand-new environment, step by step |
 | [docs/WRAPPER_GUIDE.md](docs/WRAPPER_GUIDE.md) | Creating, operating, or upgrading a deployment wrapper |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | **Day-to-day: what to run** — the quick guide |
 | [docs/OPERATIONS_DETAIL.md](docs/OPERATIONS_DETAIL.md) | Something behaved unexpectedly, or you are changing something structural |
 | [docs/DATA_LAYERS.md](docs/DATA_LAYERS.md) | Designing ingestion, or wondering what bronze/silver/gold must contain |
 | [docs/CONFIG_GUIDE.md](docs/CONFIG_GUIDE.md) | Writing or reviewing a per-env config |
-| [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | Deploying, or navigating the stack map |
+| [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | Contributing, or navigating the stack map |
 | [docs/VPC_NETWORKING.md](docs/VPC_NETWORKING.md) | Networking and Gen3 access modes |
 
-## The dbt repo (the CI/CD source)
+The transformation side lives in its own template —
+[gen3-dbt-template](https://github.com/AustralianBioCommons/gen3-dbt-template):
+create your project's dbt repo from it and point `repo.fullName` in your env config at
+that repo (wiring: [docs/CONFIG_GUIDE.md](docs/CONFIG_GUIDE.md), Section 3.3).
 
-The pipelines' source repo is always a **dbt repo** — transformation commits trigger
-the dbt-test-and-run pipeline and data-release tags trigger the write-release
-pipeline. The dbt project lives in its own template repository:
-**[AustralianBioCommons/gen3-dbt-template](https://github.com/AustralianBioCommons/gen3-dbt-template)** —
-create your project's dbt repo from it, point `repo.fullName` in the env config at
-that repo, and grant the CodeConnections GitHub App access to it. Full wiring steps:
-the template's README and [docs/CONFIG_GUIDE.md](docs/CONFIG_GUIDE.md) (Section 3.3).
-The dbt development workflow (seeding bronze, running models, integration
-verification) is documented in the template's README.
-
----
-
-## Useful commands
-
-- `npm run build` — compile TypeScript to JS
-- `npm run watch` — watch for changes and compile
-- `npm run test` — run the jest unit tests (naming convention + SSM drift guard)
-- `npx cdk list -c env=test` — list the stacks for an environment
-- `npx cdk synth -c env=test` — emit the synthesized CloudFormation template
-- `npx cdk diff -c env=test --profile <p>` — compare deployed stacks with current state
-- `npx cdk deploy --all -c env=test --profile <p>` — deploy the whole pipeline for an environment
-
-All of these accept `-c project=<projectId>` too (only needed when `config/` holds
-several projects for the same env — unnecessary in a wrapper, which holds one
-project's configs).
+Generic improvements are welcome upstream — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Deployment-specific things belong in your wrapper.
