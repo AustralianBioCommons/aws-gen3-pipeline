@@ -1,0 +1,13 @@
+# The throwaway upstream clone deploy.sh works in — never commit it.
+.checkout/
+
+# Build/synth artefacts
+cdk.out/
+node_modules/
+*.js
+*.d.ts
+
+# OS/python noise
+.DS_Store
+__pycache__/
+*.pyc

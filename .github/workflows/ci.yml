@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+  scrub-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail on real-looking AWS identifiers
+        run: |
+          set -euo pipefail
+          # This is a public template repo: only placeholder identifiers may be
+          # committed. Flag any 12-digit number (candidate AWS account id) that
+          # is not the documented placeholder 123456789012 or an all-zero id.
+          # package-lock.json and .git are excluded from the sweep.
+          hits=$(grep -rInE '\b[0-9]{12}\b' . \
+            --exclude-dir=.git \
+            --exclude-dir=node_modules \
+            --exclude=package-lock.json \
+            | grep -v 123456789012 \
+            | grep -v 00000000 \
+            || true)
+          if [ -n "$hits" ]; then
+            echo "Real-looking 12-digit AWS account ids found — replace with the placeholder 123456789012:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "Scrub check passed."

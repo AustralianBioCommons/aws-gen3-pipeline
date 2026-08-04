@@ -1,0 +1,28 @@
+# TypeScript build output (this is a TS-only repo; jest.config.js is the one real .js file)
+*.js
+!jest.config.js
+*.d.ts
+node_modules
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+
+# CDK's cached per-account context (AZ lookups etc.) — keyed to YOUR account,
+# so it belongs in your private deployment wrapper, never here.
+cdk.context.json
+
+# Real deployment configs live in a private wrapper repo (see wrapper-template/).
+# Local dev configs must never be committed to this public repo.
+config/*.json
+!config/README.md
+
+# python stuff
+tmp.json
+.venv
+__pycache__/
+*.pyc
+
+# misc
+logs/
+.DS_Store

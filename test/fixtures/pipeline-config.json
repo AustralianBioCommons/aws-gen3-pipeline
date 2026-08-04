@@ -1,0 +1,37 @@
+{
+  "_comment": "Placeholder config for unit tests (schema: lib/config.ts). Deliberately NOT a real deployment: tests must run in any checkout — including deployment-wrapper checkouts that overlay their own config/ — so they never read config/*.json.",
+
+  "projectId": "demo",
+  "environment": "test",
+  "accountId": "123456789012",
+  "region": "ap-southeast-2",
+
+  "network": {
+    "vpcCidr": "10.20.0.0/16",
+    "gen3ApiAccess": { "mode": "public" }
+  },
+
+  "repo": {
+    "fullName": "my-org/my-data-repo",
+    "branch": "main",
+    "codeStarConnectionArn": "arn:aws:codeconnections:ap-southeast-2:123456789012:connection/00000000-0000-0000-0000-000000000000"
+  },
+
+  "ec2": {
+    "instanceType": "t3.micro",
+    "ami": "ami-00000000000000000"
+  },
+
+  "toolkitVersion": "2.2.0",
+
+  "gen3": {
+    "dictionaryVersion": "v1.0.0",
+    "awsSecretName": "demo_test_gen3_api_key.json",
+    "schemaS3Uri": "my-schema-bucket/schema.json",
+    "domain": "commons.example.org",
+    "appName": "testgen3",
+    "namespace": "demo",
+    "clusterName": "Gen3-Eks-pipeline-test",
+    "schemaRepo": "my-org/my-schema-repo"
+  }
+}
