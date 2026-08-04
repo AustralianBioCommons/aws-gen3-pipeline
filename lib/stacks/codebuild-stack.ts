@@ -154,6 +154,15 @@ export class CodeBuildStack extends cdk.Stack {
             ],
         }));
 
+        // The release buildspec's CI wait-gate polls the CI project before running
+        // dbt build (gen3-dbt-template .codepipeline/write_release_info.yml). Without
+        // this grant the gate degrades to a warning and silently stops gating.
+        codeBuildRole.addToPolicy(new iam.PolicyStatement({
+            sid: 'WaitOnCiBuilds',
+            actions: ['codebuild:ListBuildsForProject', 'codebuild:BatchGetBuilds'],
+            resources: [`arn:aws:codebuild:${region}:${accountId}:project/${names.codebuild.dbtTestAndRun}`],
+        }));
+
         codeBuildRole.addToPolicy(new iam.PolicyStatement({
             actions: [
                 'logs:CreateLogGroup', 'logs:CreateLogStream',
