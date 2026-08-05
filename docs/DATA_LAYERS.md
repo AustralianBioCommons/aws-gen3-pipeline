@@ -20,9 +20,9 @@ The CDK creates a bucket *and* a Glue database per layer, per environment
 
 | Layer | Bucket | Glue database | Built by | Rebuilt by CI? |
 |---|---|---|---|---|
-| **Bronze** | `<project>-<env>-raw-bronze-<account>-<region>` | `<project>_<env>_raw_bronze_db` | **you** — any ingestion you like | **No** |
-| **Silver** | `<project>-<env>-raw-silver-<account>-<region>` | `<project>_<env>_raw_silver_db` | dbt | Yes → `ci_<project>_<env>_raw_silver_db` |
-| **Gold** | `<project>-<env>-raw-gold-<account>-<region>` | `<project>_<env>_raw_gold_db` | dbt | Yes → `ci_<project>_<env>_raw_gold_db` |
+| **Bronze** | `<project>-<env>-bronze-<account>-<region>` | `<project>_<env>_bronze_db` | **you** — any ingestion you like | **No** |
+| **Silver** | `<project>-<env>-silver-<account>-<region>` | `<project>_<env>_silver_db` | dbt | Yes → `ci_<project>_<env>_silver_db` |
+| **Gold** | `<project>-<env>-gold-<account>-<region>` | `<project>_<env>_gold_db` | dbt | Yes → `ci_<project>_<env>_gold_db` |
 
 Note what is missing from that table: **there is no `ci_` bronze database.** That
 is not an oversight. CI rebuilds silver and gold from bronze on every commit, so
@@ -64,7 +64,7 @@ Gen3; none of them will reshape it for you.
 database:
 
 ```python
-silver_db = rc.get("glue/db/rawSilver")
+silver_db = rc.get("glue/db/silver")
 study_id_list = derive_study_ids(AthenaQuery(config), silver_db)
 ```
 
@@ -144,7 +144,7 @@ aws s3 cp template.xlsx s3://<bronze-bucket>/submissions/<study_id>/
         │
         ▼  Glue job  <project>-<env>-ingest-metadata-templates
         │
-<project>_<env>_raw_bronze_db . bronze_<study_id>_<node>       one table per node sheet
+<project>_<env>_bronze_db . bronze_<study_id>_<node>       one table per node sheet
 ```
 
 [`gen3-metadata-templates`](https://github.com/AustralianBioCommons/gen3-metadata-templates)
@@ -158,7 +158,7 @@ errors cannot be made in the first place.
 The study id is the **first path segment** under the scanned prefix:
 
 ```
-s3://<project>-<env>-raw-bronze-<account>-<region>/submissions/<study_id>/<anything>.xlsx
+s3://<project>-<env>-bronze-<account>-<region>/submissions/<study_id>/<anything>.xlsx
                                                    └ prefix ─┘ └ study ─┘
 ```
 

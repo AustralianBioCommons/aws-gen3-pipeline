@@ -72,7 +72,7 @@ Once deployed, a normal week on the pipeline:
    snapshot to the release ledger and produces the structured release JSONs the Gen3
    deployment consumes. Rolling back is pointing at the previous version.
 5. **Anyone with access explores in Athena** — at every layer, the whole time:
-   `SELECT * FROM myproject_test_raw_gold_db.subject`.
+   `SELECT * FROM myproject_test_gold_db.subject`.
 
 ## The CLI toolkit
 

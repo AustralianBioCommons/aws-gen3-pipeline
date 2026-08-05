@@ -30,9 +30,9 @@ export class IamRolesStack extends cdk.Stack {
         });
 
         const dataBucketArns = [
-            names.buckets.rawBronze,
-            names.buckets.rawSilver,
-            names.buckets.rawGold,
+            names.buckets.bronze,
+            names.buckets.silver,
+            names.buckets.gold,
             names.buckets.metadata,
             names.buckets.validation,
             names.buckets.athenaResults,

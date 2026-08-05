@@ -298,7 +298,7 @@ graph TD
 
 4.  **GlueCatalogStack** (`lib/stacks/glue-catalog-stack.ts`):
     -   **Purpose**: Defines the schematic structure of your data.
-    -   **Resources**: Seven Glue Databases — the five real ones (`rawBronze`, `rawSilver`, `rawGold`, `metadata`, `validation`), each pointing to its respective S3 bucket, plus two **CI isolation** databases (`ci_<project>_<env>_raw_silver_db`, `ci_<project>_<env>_raw_gold_db`, data under the same buckets' `dbt_ci/` prefix). Only the dbt template's `ci` target writes the CI databases — the real names are never prefixed — so commit-triggered CI builds can never advance the warehouse's Iceberg snapshots that releases pin. Also creates a `releases` table in the `metadata` database for storing release records.
+    -   **Resources**: Seven Glue Databases — the five real ones (`bronze`, `silver`, `gold`, `metadata`, `validation`), each pointing to its respective S3 bucket, plus two **CI isolation** databases (`ci_<project>_<env>_silver_db`, `ci_<project>_<env>_gold_db`, data under the same buckets' `dbt_ci/` prefix). Only the dbt template's `ci` target writes the CI databases — the real names are never prefixed — so commit-triggered CI builds can never advance the warehouse's Iceberg snapshots that releases pin. Also creates a `releases` table in the `metadata` database for storing release records.
 
 5.  **GlueJobsStack** (`lib/stacks/glue-jobs-stack.ts`):
     -   **Purpose**: Defines the ETL scripts to run.
@@ -333,7 +333,7 @@ graph TD
 
 11. **SsmParametersStack** (`lib/stacks/ssm-parameters-stack.ts`):
     -   **Purpose**: Publishes every OUTPUT name (plus the `app/*` Gen3 facts) to SSM Parameter Store under `/{project}/{env}/…` — the runtime source of truth for the CLI, CodeBuild, the EC2 box and Glue.
-    -   **Resources**: 40 `StringParameter`s per environment (the 41st tree entry, `ec2/instanceId`, is published by `Ec2JobRunnerStack` itself — a cross-stack token would block instance replacement). Includes `glue/db/ciRawSilver` / `glue/db/ciRawGold`, the CI-isolation database names.
+    -   **Resources**: 40 `StringParameter`s per environment (the 41st tree entry, `ec2/instanceId`, is published by `Ec2JobRunnerStack` itself — a cross-stack token would block instance replacement). Includes `glue/db/ciSilver` / `glue/db/ciGold`, the CI-isolation database names.
     -   **Key Detail**: Deploys **last** (`addDependency` on every other stack) so no name is published before its resource exists. `test/ssm-publishing.test.ts` fails if a named resource has no matching parameter.
 
 ---

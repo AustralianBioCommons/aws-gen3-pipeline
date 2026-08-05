@@ -37,7 +37,7 @@ the indexd registry hit in the legacy pipeline (46,598 rows for 23,295 files).
 
 Reads:  s3://<bronze-bucket>/<prefix>/<study_id>/*.xlsx  (prefix defaults to
         `submissions`; study_id is taken from the first path segment under it)
-Writes: <project>_<env>_raw_bronze_db.bronze_<study_id>_<node>
+Writes: <project>_<env>_bronze_db.bronze_<study_id>_<node>
 
 Names come from the env's SSM tree via the g3dt resolver — the job receives
 only --PROJECT_ID/--ENV/--REGION from the CDK.
@@ -299,8 +299,8 @@ def main():
     session = boto3.Session(region_name=args.REGION)
 
     rc = resolver.ResolvedConfig(args.PROJECT_ID, args.ENV, args.REGION)
-    bronze_bucket = rc.get("buckets/rawBronze")
-    bronze_db = rc.get("glue/db/rawBronze")
+    bronze_bucket = rc.get("buckets/bronze")
+    bronze_db = rc.get("glue/db/bronze")
     athena_output = rc.get("athena/output")
     workgroup = rc.get("athena/workgroup")
 

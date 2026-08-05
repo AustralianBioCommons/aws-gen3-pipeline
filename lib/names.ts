@@ -29,14 +29,14 @@ export interface GlueJobDerived {
 export interface DerivedNames {
     meta: { projectId: string; region: string; accountId: string; toolkitVersion: string };
     buckets: {
-        metadata: string; rawBronze: string; rawSilver: string; rawGold: string;
+        metadata: string; bronze: string; silver: string; gold: string;
         athenaResults: string; validation: string; artifact: string;
     };
     glueDatabases: {
-        metadata: string; rawBronze: string; rawSilver: string; rawGold: string; validation: string;
+        metadata: string; bronze: string; silver: string; gold: string; validation: string;
         // CI isolation: the dbt template's `ci` target builds into these,
         // keeping commit-triggered CI off the real warehouse databases.
-        ciRawSilver: string; ciRawGold: string;
+        ciSilver: string; ciGold: string;
     };
     athena: { workgroup: string; outputLocation: string };
     release: { db: string; table: string };
@@ -100,9 +100,9 @@ export function deriveNames(cfg: InputConfig): DerivedNames {
 
     const buckets = {
         metadata: bucket('metadata'),
-        rawBronze: bucket('raw-bronze'),
-        rawSilver: bucket('raw-silver'),
-        rawGold: bucket('raw-gold'),
+        bronze: bucket('bronze'),
+        silver: bucket('silver'),
+        gold: bucket('gold'),
         // 'athena-results', not 'aws-athena-query-results': S3 caps bucket
         // names at 63 chars and the long form overflows for env "staging".
         athenaResults: bucket('athena-results'),
@@ -112,16 +112,16 @@ export function deriveNames(cfg: InputConfig): DerivedNames {
 
     const glueDatabases = {
         metadata: `${dbPrefix}_dataops_metadata_db`,
-        rawBronze: `${dbPrefix}_raw_bronze_db`,
-        rawSilver: `${dbPrefix}_raw_silver_db`,
-        rawGold: `${dbPrefix}_raw_gold_db`,
+        bronze: `${dbPrefix}_bronze_db`,
+        silver: `${dbPrefix}_silver_db`,
+        gold: `${dbPrefix}_gold_db`,
         validation: `${dbPrefix}_validation_db`,
         // CI isolation: ONLY the dbt template's `ci` target maps to these
         // (leading ci_ prefix on the otherwise-unchanged real name). The
         // real databases above are never prefixed, and the toolkit's
         // find_db_for_model skips ci_* so releases can't pin CI snapshots.
-        ciRawSilver: `ci_${dbPrefix}_raw_silver_db`,
-        ciRawGold: `ci_${dbPrefix}_raw_gold_db`,
+        ciSilver: `ci_${dbPrefix}_silver_db`,
+        ciGold: `ci_${dbPrefix}_gold_db`,
     };
 
     const script = (file: string) => `s3://${buckets.metadata}/scripts/${file}`;
