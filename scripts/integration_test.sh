@@ -62,6 +62,7 @@ console.log(JSON.stringify({
   metadataBucket: n.buckets.metadata,
   workgroup: n.athena.workgroup,
   scriptLocations: n.glueJobs.map(j => j.scriptLocation),
+  jobNames: n.glueJobs.map(j => j.name),
   pipelines: [n.codepipeline.dbtTestAndRun, n.codepipeline.writeReleaseInfo],
 }));
 ")"
@@ -96,6 +97,19 @@ pval() { echo "$PARAMS" | jq -r --arg n "$BASE/$1" '.Parameters[] | select(.Name
   && ok "athena/workgroup matches deriveNames()" || bad "athena/workgroup value drifted"
 [[ "$(pval meta/toolkitVersion)" == "$(val .toolkitVersion)" ]] \
   && ok "meta/toolkitVersion matches config" || bad "meta/toolkitVersion drifted"
+# Toolkit releases are a three-way coupling: the PyPI release, the config's
+# toolkitVersion pin, and the glue-scripts S3 copy must all move together.
+# This check catches a missed leg: deployed Glue jobs still pinning an old
+# toolkit after the config bumped. Custom jobs may legitimately override
+# --additional-python-modules (lib/stacks/glue-jobs-stack.ts) - hence warn,
+# not bad, when no pin is found at all.
+PIN="gen3-dataops-toolkit==$(val .toolkitVersion)"
+for job in $(echo "$EXPECT" | jq -r '.jobNames[]'); do
+  MODS=$("${AWS[@]}" glue get-job --job-name "$job" --query 'Job.DefaultArguments."--additional-python-modules"' --output text 2>/dev/null)
+  if [[ "$MODS" == *"$PIN"* ]]; then ok "glue job ${job} pins ${PIN}"
+  elif [[ "$MODS" == *"gen3-dataops-toolkit=="* ]]; then bad "glue job ${job} pins a DIFFERENT toolkit version (${MODS})"
+  else warn "glue job ${job}: no toolkit pin found (custom override or job missing)"; fi
+done
 INSTANCE_ID="$(pval ec2/instanceId)"
 if [[ "$INSTANCE_ID" =~ ^i-[0-9a-f]+$ ]]; then ok "ec2/instanceId is a real id (${INSTANCE_ID})"; else bad "ec2/instanceId invalid: '${INSTANCE_ID}'"; fi
 APP_COUNT="$(echo "$PARAMS" | jq --arg p "$BASE/app/" '[.Parameters[] | select(.Name | startswith($p))] | length')"
