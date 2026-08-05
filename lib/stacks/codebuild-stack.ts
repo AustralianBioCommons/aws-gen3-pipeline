@@ -52,13 +52,13 @@ export class CodeBuildStack extends cdk.Stack {
         // to derived names: dbt reads bronze, writes silver/gold/metadata/
         // validation, and runs everything through the env's Athena workgroup.
         const rwBuckets = [
-            names.buckets.rawSilver,
-            names.buckets.rawGold,
+            names.buckets.silver,
+            names.buckets.gold,
             names.buckets.metadata,
             names.buckets.validation,
             names.buckets.athenaResults,
         ].map((b) => `arn:aws:s3:::${b}`);
-        const bronzeBucket = `arn:aws:s3:::${names.buckets.rawBronze}`;
+        const bronzeBucket = `arn:aws:s3:::${names.buckets.bronze}`;
 
         codeBuildRole.addToPolicy(new iam.PolicyStatement({
             sid: 'BucketList',
@@ -116,14 +116,14 @@ export class CodeBuildStack extends cdk.Stack {
             resources: [
                 catalogArn,
                 ...glueDbArns([
-                    names.glueDatabases.rawSilver,
-                    names.glueDatabases.rawGold,
+                    names.glueDatabases.silver,
+                    names.glueDatabases.gold,
                     names.glueDatabases.metadata,
                     names.glueDatabases.validation,
                     // CI isolation: the ci dbt target writes these instead of
                     // the real silver/gold databases.
-                    names.glueDatabases.ciRawSilver,
-                    names.glueDatabases.ciRawGold,
+                    names.glueDatabases.ciSilver,
+                    names.glueDatabases.ciGold,
                 ]),
             ],
         }));
@@ -135,7 +135,7 @@ export class CodeBuildStack extends cdk.Stack {
                 'glue:GetTableVersion', 'glue:GetTableVersions', 'glue:SearchTables',
             ],
             resources: [
-                ...glueDbArns([names.glueDatabases.rawBronze]),
+                ...glueDbArns([names.glueDatabases.bronze]),
                 `arn:aws:glue:${region}:${accountId}:database/default`,
             ],
         }));

@@ -80,7 +80,7 @@ def main() -> None:
     args = parse_args()
     rc = resolver.resolve(args.PROJECT_ID, args.ENV, region=args.REGION)
 
-    silver_db = rc.get("glue/db/rawSilver")
+    silver_db = rc.get("glue/db/silver")
     validation_bucket = rc.get("buckets/validation")
     validation_db = rc.get("glue/db/validation")
     # SSM stores schemaS3Uri in bucket/key form (no scheme) — see CONFIG_GUIDE.

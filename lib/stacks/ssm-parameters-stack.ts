@@ -6,7 +6,7 @@
 // adds a dependency on every other stack) so a name is never published before
 // its resource exists.
 //
-// 38 parameters per env: 30 OUTPUT names + 8 app/* facts. (The 39th tree
+// 40 parameters per env: 32 OUTPUT names + 8 app/* facts. (The 41st tree
 // entry, ec2/instanceId, is published by the EC2 stack itself — its value is
 // a runtime token of a replaceable instance, and importing it here would
 // create a cross-stack export that blocks instance replacement.)
@@ -44,21 +44,21 @@ export class SsmParametersStack extends cdk.Stack {
 
         // buckets
         put('buckets/metadata', names.buckets.metadata);
-        put('buckets/rawBronze', names.buckets.rawBronze);
-        put('buckets/rawSilver', names.buckets.rawSilver);
-        put('buckets/rawGold', names.buckets.rawGold);
+        put('buckets/bronze', names.buckets.bronze);
+        put('buckets/silver', names.buckets.silver);
+        put('buckets/gold', names.buckets.gold);
         put('buckets/athenaResults', names.buckets.athenaResults);
         put('buckets/validation', names.buckets.validation);
         put('buckets/artifact', names.buckets.artifact);
 
         // glue databases
         put('glue/db/metadata', names.glueDatabases.metadata);
-        put('glue/db/rawBronze', names.glueDatabases.rawBronze);
-        put('glue/db/rawSilver', names.glueDatabases.rawSilver);
-        put('glue/db/rawGold', names.glueDatabases.rawGold);
+        put('glue/db/bronze', names.glueDatabases.bronze);
+        put('glue/db/silver', names.glueDatabases.silver);
+        put('glue/db/gold', names.glueDatabases.gold);
         put('glue/db/validation', names.glueDatabases.validation);
-        put('glue/db/ciRawSilver', names.glueDatabases.ciRawSilver);
-        put('glue/db/ciRawGold', names.glueDatabases.ciRawGold);
+        put('glue/db/ciSilver', names.glueDatabases.ciSilver);
+        put('glue/db/ciGold', names.glueDatabases.ciGold);
 
         // athena
         put('athena/workgroup', names.athena.workgroup);

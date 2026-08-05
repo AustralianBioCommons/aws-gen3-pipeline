@@ -32,9 +32,9 @@ export class GlueCatalogStack extends cdk.Stack {
                 },
             });
 
-        makeDb('RawBronzeDb', glueDatabases.rawBronze, buckets.rawBronze, 'Raw bronze layer');
-        makeDb('RawSilverDb', glueDatabases.rawSilver, buckets.rawSilver, 'Raw silver layer');
-        makeDb('RawGoldDb', glueDatabases.rawGold, buckets.rawGold, 'Raw gold layer');
+        makeDb('BronzeDb', glueDatabases.bronze, buckets.bronze, 'Bronze layer');
+        makeDb('SilverDb', glueDatabases.silver, buckets.silver, 'Silver layer');
+        makeDb('GoldDb', glueDatabases.gold, buckets.gold, 'Gold layer');
         const metadataDb = makeDb(
             'MetadataDb',
             glueDatabases.metadata,
@@ -51,15 +51,15 @@ export class GlueCatalogStack extends cdk.Stack {
         // same buckets, data under a dbt_ci/ prefix. Real databases above
         // keep their names; only the ci target is ever prefixed.
         makeDb(
-            'CiRawSilverDb',
-            glueDatabases.ciRawSilver,
-            `${buckets.rawSilver}/dbt_ci`,
+            'CiSilverDb',
+            glueDatabases.ciSilver,
+            `${buckets.silver}/dbt_ci`,
             'CI dbt builds (isolated from the silver warehouse)',
         );
         makeDb(
-            'CiRawGoldDb',
-            glueDatabases.ciRawGold,
-            `${buckets.rawGold}/dbt_ci`,
+            'CiGoldDb',
+            glueDatabases.ciGold,
+            `${buckets.gold}/dbt_ci`,
             'CI dbt builds (isolated from the gold warehouse)',
         );
 

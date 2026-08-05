@@ -148,7 +148,7 @@ def main() -> None:
 
     release_db = rc.release_db
     release_table = rc.release_table
-    gold_bucket = rc.get("buckets/rawGold")
+    gold_bucket = rc.get("buckets/gold")
     schema_s3_uri = f"s3://{rc.app('schema_s3_uri')}"
     max_workers = int(os.environ.get("RELEASE_EXPORT_MAX_WORKERS", str(DEFAULT_MAX_WORKERS)))
 

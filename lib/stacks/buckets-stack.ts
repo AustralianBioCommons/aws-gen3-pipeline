@@ -12,9 +12,9 @@ export interface BucketsStackProps extends StackProps {
 }
 
 export class BucketsStack extends Stack {
-    public readonly rawBronze: s3.Bucket;
-    public readonly rawSilver: s3.Bucket;
-    public readonly rawGold: s3.Bucket;
+    public readonly bronze: s3.Bucket;
+    public readonly silver: s3.Bucket;
+    public readonly gold: s3.Bucket;
     public readonly metadata: s3.Bucket;
     public readonly validation: s3.Bucket;
     public readonly athenaResults: s3.Bucket;
@@ -35,9 +35,9 @@ export class BucketsStack extends Stack {
                 autoDeleteObjects: false,
             });
 
-        this.rawBronze = mk("raw-bronze", buckets.rawBronze);
-        this.rawSilver = mk("raw-silver", buckets.rawSilver);
-        this.rawGold = mk("raw-gold", buckets.rawGold);
+        this.bronze = mk("bronze", buckets.bronze);
+        this.silver = mk("silver", buckets.silver);
+        this.gold = mk("gold", buckets.gold);
         this.metadata = mk("metadata", buckets.metadata);
         this.validation = mk("validation", buckets.validation);
         this.athenaResults = mk("athena-results", buckets.athenaResults);

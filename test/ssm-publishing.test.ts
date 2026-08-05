@@ -96,6 +96,25 @@ describe('SSM publishing — every named resource is exported (drift guard)', ()
     it('publishes exactly the expected number of parameters (catches stray/duplicate)', () => {
         ssmTemplate.resourceCountIs('AWS::SSM::Parameter', EXPECTED_PARAM_COUNT);
     });
+
+    it('pins the medallion SSM key paths — the cross-repo contract', () => {
+        // These exact key strings are read by the toolkit (dbt-env, release
+        // search) and this repo's own glue-scripts via rc.get(). Nothing else
+        // in the suite asserts the key PATHS, so before this test a key
+        // rename kept everything green here while silently breaking every
+        // consumer (rc.get returns None — no error, wrong warehouse). If this
+        // test breaks, you are changing a published contract: coordinate a
+        // toolkit release and a major version bump.
+        for (const key of [
+            'buckets/bronze', 'buckets/silver', 'buckets/gold',
+            'glue/db/bronze', 'glue/db/silver', 'glue/db/gold',
+            'glue/db/ciSilver', 'glue/db/ciGold',
+        ]) {
+            ssmTemplate.hasResourceProperties('AWS::SSM::Parameter', {
+                Name: `${base}/${key}`,
+            });
+        }
+    });
 });
 
 describe('NetworkStack — the pipeline owns its network, zero ingress', () => {
@@ -197,7 +216,7 @@ describe('CodeBuild sources from the pipeline connection (no PAT needed)', () =>
         // bronze objects are read-only: no statement grants PutObject on the bronze bucket
         const bronzeWrites = statements.filter((s) =>
             JSON.stringify(s.Action).includes('s3:PutObject') &&
-            JSON.stringify(s.Resource).includes(names.buckets.rawBronze));
+            JSON.stringify(s.Resource).includes(names.buckets.bronze));
         expect(bronzeWrites).toHaveLength(0);
     });
 

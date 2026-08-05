@@ -27,7 +27,7 @@ const names = deriveNames(cfg);
 describe('deriveNames — the naming convention is pinned', () => {
     it('buckets follow <project>-<env>-<suffix>-<account>-<region>, lower-cased', () => {
         expect(names.buckets.metadata).toBe('myproject-test-metadata-123456789012-ap-southeast-2');
-        expect(names.buckets.rawBronze).toBe('myproject-test-raw-bronze-123456789012-ap-southeast-2');
+        expect(names.buckets.bronze).toBe('myproject-test-bronze-123456789012-ap-southeast-2');
         expect(names.buckets.athenaResults).toBe('myproject-test-athena-results-123456789012-ap-southeast-2');
     });
 
@@ -42,15 +42,15 @@ describe('deriveNames — the naming convention is pinned', () => {
 
     it('Glue databases use underscores and a _db suffix (no account/region)', () => {
         expect(names.glueDatabases.metadata).toBe('myproject_test_dataops_metadata_db');
-        expect(names.glueDatabases.rawSilver).toBe('myproject_test_raw_silver_db');
+        expect(names.glueDatabases.silver).toBe('myproject_test_silver_db');
     });
 
     it('CI databases are the real names with a leading ci_ prefix — real names never change', () => {
-        expect(names.glueDatabases.ciRawSilver).toBe('ci_myproject_test_raw_silver_db');
-        expect(names.glueDatabases.ciRawGold).toBe('ci_myproject_test_raw_gold_db');
+        expect(names.glueDatabases.ciSilver).toBe('ci_myproject_test_silver_db');
+        expect(names.glueDatabases.ciGold).toBe('ci_myproject_test_gold_db');
         // the invariant: only the ci variants carry the prefix
-        expect(names.glueDatabases.rawSilver.startsWith('ci_')).toBe(false);
-        expect(names.glueDatabases.rawGold.startsWith('ci_')).toBe(false);
+        expect(names.glueDatabases.silver.startsWith('ci_')).toBe(false);
+        expect(names.glueDatabases.gold.startsWith('ci_')).toBe(false);
     });
 
     it('workgroup is the bare <project>-<env> prefix', () => {

@@ -75,7 +75,7 @@ for every SSM consumer):
 | Resource class | Pattern | Example |
 |---|---|---|
 | S3 buckets | `<project>-<env>-<suffix>-<account>-<region>` | `etl-test-metadata-123456789012-ap-southeast-2` |
-| Glue databases | `<project>_<env>_<suffix>_db` | `etl_test_raw_silver_db` |
+| Glue databases | `<project>_<env>_<suffix>_db` | `etl_test_silver_db` |
 | Everything else | `<project>-<env>-<suffix>` | `etl-test-dbt-test-and-run` |
 
 The SSM tree per env: `meta/*`, `buckets/*`, `glue/db/*`, `athena/*`, `release/*`,

@@ -118,7 +118,7 @@ def process_table(config, validation_bucket, validation_id, silver_db, table):
 def main() -> None:
     args = parse_args()
     rc = resolver.resolve(args.PROJECT_ID, args.ENV, region=args.REGION)
-    silver_db = rc.get("glue/db/rawSilver")
+    silver_db = rc.get("glue/db/silver")
     validation_bucket = rc.get("buckets/validation")
     max_workers = int(os.environ.get("VALIDATION_EXPORT_MAX_WORKERS", str(DEFAULT_MAX_WORKERS)))
     logger.info(
