@@ -36,7 +36,7 @@ export interface DerivedNames {
         metadata: string; bronze: string; silver: string; gold: string; validation: string;
         // CI isolation: the dbt template's `ci` target builds into these,
         // keeping commit-triggered CI off the real warehouse databases.
-        ciSilver: string; ciGold: string;
+        ciBronze: string; ciSilver: string; ciGold: string;
     };
     athena: { workgroup: string; outputLocation: string };
     release: { db: string; table: string };
@@ -120,6 +120,7 @@ export function deriveNames(cfg: InputConfig): DerivedNames {
         // (leading ci_ prefix on the otherwise-unchanged real name). The
         // real databases above are never prefixed, and the toolkit's
         // find_db_for_model skips ci_* so releases can't pin CI snapshots.
+        ciBronze: `ci_${dbPrefix}_bronze_db`,
         ciSilver: `ci_${dbPrefix}_silver_db`,
         ciGold: `ci_${dbPrefix}_gold_db`,
     };

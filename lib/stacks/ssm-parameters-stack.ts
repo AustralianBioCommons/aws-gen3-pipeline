@@ -6,7 +6,7 @@
 // adds a dependency on every other stack) so a name is never published before
 // its resource exists.
 //
-// 40 parameters per env: 32 OUTPUT names + 8 app/* facts. (The 41st tree
+// 41 parameters per env: 33 OUTPUT names + 8 app/* facts. (The 42nd tree
 // entry, ec2/instanceId, is published by the EC2 stack itself — its value is
 // a runtime token of a replaceable instance, and importing it here would
 // create a cross-stack export that blocks instance replacement.)
@@ -57,6 +57,7 @@ export class SsmParametersStack extends cdk.Stack {
         put('glue/db/silver', names.glueDatabases.silver);
         put('glue/db/gold', names.glueDatabases.gold);
         put('glue/db/validation', names.glueDatabases.validation);
+        put('glue/db/ciBronze', names.glueDatabases.ciBronze);
         put('glue/db/ciSilver', names.glueDatabases.ciSilver);
         put('glue/db/ciGold', names.glueDatabases.ciGold);
 
