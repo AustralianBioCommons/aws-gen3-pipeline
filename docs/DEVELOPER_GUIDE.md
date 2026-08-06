@@ -333,7 +333,7 @@ graph TD
 
 11. **SsmParametersStack** (`lib/stacks/ssm-parameters-stack.ts`):
     -   **Purpose**: Publishes every OUTPUT name (plus the `app/*` Gen3 facts) to SSM Parameter Store under `/{project}/{env}/…` — the runtime source of truth for the CLI, CodeBuild, the EC2 box and Glue.
-    -   **Resources**: 40 `StringParameter`s per environment (the 41st tree entry, `ec2/instanceId`, is published by `Ec2JobRunnerStack` itself — a cross-stack token would block instance replacement). Includes `glue/db/ciSilver` / `glue/db/ciGold`, the CI-isolation database names.
+    -   **Resources**: 41 `StringParameter`s per environment (the 42nd tree entry, `ec2/instanceId`, is published by `Ec2JobRunnerStack` itself — a cross-stack token would block instance replacement). Includes `glue/db/ciBronze` / `glue/db/ciSilver` / `glue/db/ciGold`, the CI-isolation database names.
     -   **Key Detail**: Deploys **last** (`addDependency` on every other stack) so no name is published before its resource exists. `test/ssm-publishing.test.ts` fails if a named resource has no matching parameter.
 
 ---

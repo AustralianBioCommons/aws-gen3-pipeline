@@ -20,16 +20,18 @@ The CDK creates a bucket *and* a Glue database per layer, per environment
 
 | Layer | Bucket | Glue database | Built by | Rebuilt by CI? |
 |---|---|---|---|---|
-| **Bronze** | `<project>-<env>-bronze-<account>-<region>` | `<project>_<env>_bronze_db` | **you** — any ingestion you like | **No** |
+| **Bronze** | `<project>-<env>-bronze-<account>-<region>` | `<project>_<env>_bronze_db` | **you** — any ingestion you like, or dbt-generated (the template's synthetic default) | Only when dbt-managed → `ci_<project>_<env>_bronze_db` |
 | **Silver** | `<project>-<env>-silver-<account>-<region>` | `<project>_<env>_silver_db` | dbt | Yes → `ci_<project>_<env>_silver_db` |
 | **Gold** | `<project>-<env>-gold-<account>-<region>` | `<project>_<env>_gold_db` | dbt | Yes → `ci_<project>_<env>_gold_db` |
 
-Note what is missing from that table: **there is no `ci_` bronze database.** That
-is not an oversight. CI rebuilds silver and gold from bronze on every commit, so
-those two layers must be isolated from the release warehouse (see
-[OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 3 and the `ci` dbt target). Bronze is never
-rebuilt by dbt, so it needs no CI copy — which is the clearest statement of the
-boundary: **bronze is an input to the platform, not a product of it.**
+Every layer has a `ci_` twin so commit-triggered CI never writes the release
+warehouse (see [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 3 and the
+`ci` dbt target). Bronze's twin only sees writes when bronze itself is
+dbt-managed — the dbt template's synthetic-data revision generates
+deterministic bronze in SQL, which is the recommended starting point for a new
+environment. Deployments with real ingestion (Glue jobs, external tools)
+simply leave `ci_..._bronze_db` empty, and the boundary still holds:
+**externally-ingested bronze is an input to the platform, not a product of it.**
 
 ---
 

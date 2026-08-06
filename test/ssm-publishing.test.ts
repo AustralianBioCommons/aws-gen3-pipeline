@@ -27,7 +27,7 @@ const base = `/${config.projectId}/${config.environment}`;
 // 30 OUTPUT names + 8 app/* facts in the SSM stack; ec2/instanceId is
 // published by the EC2 stack (runtime token of a replaceable instance —
 // a cross-stack reference would block replacement). Tree total: 41.
-const EXPECTED_PARAM_COUNT = 40;
+const EXPECTED_PARAM_COUNT = 41;
 
 /** Every string Value published to SSM (the instanceId token is an object, skipped). */
 const publishedValues = new Set<string>(
@@ -56,7 +56,7 @@ describe('SSM publishing — every named resource is exported (drift guard)', ()
 
     it('exports every Glue database name', () => {
         const created = namesOf(stacks.glueCatalog, 'AWS::Glue::Database', 'DatabaseInput.Name');
-        expect(created.length).toBe(7);
+        expect(created.length).toBe(8);
         for (const n of created) expect(publishedValues).toContain(n);
     });
 
@@ -107,7 +107,7 @@ describe('SSM publishing — every named resource is exported (drift guard)', ()
         // toolkit release and a major version bump.
         for (const key of [
             'buckets/bronze', 'buckets/silver', 'buckets/gold',
-            'glue/db/bronze', 'glue/db/silver', 'glue/db/gold',
+            'glue/db/bronze', 'glue/db/silver', 'glue/db/gold', 'glue/db/ciBronze',
             'glue/db/ciSilver', 'glue/db/ciGold',
         ]) {
             ssmTemplate.hasResourceProperties('AWS::SSM::Parameter', {
@@ -202,7 +202,7 @@ describe('CodeBuild sources from the pipeline connection (no PAT needed)', () =>
         }
     });
 
-    it('the CodeBuild role can run dbt: workgroup-scoped Athena + read-only bronze', () => {
+    it('the CodeBuild role can run dbt: workgroup-scoped Athena + writable medallion layers', () => {
         const cbTemplate = Template.fromStack(stacks.codeBuild);
         const statements = Object.values(cbTemplate.findResources('AWS::IAM::Policy'))
             .flatMap((p) => p.Properties?.PolicyDocument?.Statement ?? []);
@@ -213,11 +213,13 @@ describe('CodeBuild sources from the pipeline connection (no PAT needed)', () =>
         expect(flat).toContain('athena:StartQueryExecution');
         // Glue write actions exist for the dbt-managed DBs
         expect(flat).toContain('glue:DeleteTable');
-        // bronze objects are read-only: no statement grants PutObject on the bronze bucket
+        // Bronze is writable since the template's synthetic-data revision
+        // (dbt can generate bronze); the ci bronze database is granted too.
         const bronzeWrites = statements.filter((s) =>
             JSON.stringify(s.Action).includes('s3:PutObject') &&
             JSON.stringify(s.Resource).includes(names.buckets.bronze));
-        expect(bronzeWrites).toHaveLength(0);
+        expect(bronzeWrites).toHaveLength(1);
+        expect(flat).toContain(`database/${names.glueDatabases.ciBronze}`);
     });
 
     it('pipeline source actions hand over a full-clone reference', () => {
