@@ -117,6 +117,7 @@ checkout, add a custom Glue job, upgrade a deployment.
 
 | Doc | Read it when |
 |---|---|
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | **The end-to-end setup path** — pipeline + dbt repo + CLI, from nothing to a validated data release |
 | [docs/QUICKSTART.md](docs/QUICKSTART.md) | Deploying this, in any of the supported ways |
 | [docs/FIRST_TIME_SETUP.md](docs/FIRST_TIME_SETUP.md) | Standing up a brand-new environment, step by step |
 | [docs/WRAPPER_GUIDE.md](docs/WRAPPER_GUIDE.md) | Creating, operating, or upgrading a deployment wrapper |

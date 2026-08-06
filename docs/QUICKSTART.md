@@ -1,8 +1,9 @@
 # Quickstart
 
 Short, copy-pasteable paths for the four common tasks. Each links to the full
-guide for detail. New to the project? Read the [README](../README.md) first for
-what the pipeline is and how configuration works.
+guide for detail. New to the project? Read the [README](../README.md) for what
+the pipeline is, then follow [RUNBOOK.md](RUNBOOK.md) — the ordered end-to-end
+setup path (pipeline + dbt repo + CLI) that these quickstarts are excerpts of.
 
 ## Prerequisites
 
