@@ -49,16 +49,9 @@ export class GlueCatalogStack extends cdk.Stack {
         );
         // CI isolation: the dbt template's `ci` target builds into these —
         // same buckets, data under a dbt_ci/ prefix. Real databases above
-        // keep their names; only the ci target is ever prefixed. Bronze is
-        // included because the template can generate synthetic bronze via
-        // dbt (its synthetic-data revision) — externally-ingested bronze
-        // deployments simply leave the ci bronze database empty.
-        makeDb(
-            'CiBronzeDb',
-            glueDatabases.ciBronze,
-            `${buckets.bronze}/dbt_ci`,
-            'CI dbt builds (isolated from the bronze layer)',
-        );
+        // keep their names; only the ci target is ever prefixed. The ci
+        // databases exist for silver and gold because CI rebuilds those
+        // layers; bronze is never rebuilt by dbt, so it has no ci twin.
         makeDb(
             'CiSilverDb',
             glueDatabases.ciSilver,

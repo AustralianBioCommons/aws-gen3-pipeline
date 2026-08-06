@@ -46,7 +46,6 @@ describe('deriveNames — the naming convention is pinned', () => {
     });
 
     it('CI databases are the real names with a leading ci_ prefix — real names never change', () => {
-        expect(names.glueDatabases.ciBronze).toBe('ci_myproject_test_bronze_db');
         expect(names.glueDatabases.ciSilver).toBe('ci_myproject_test_silver_db');
         expect(names.glueDatabases.ciGold).toBe('ci_myproject_test_gold_db');
         // the invariant: only the ci variants carry the prefix
