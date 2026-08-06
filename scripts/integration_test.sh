@@ -85,10 +85,10 @@ echo "Integration tests for ${PREFIX} (config: ${CONFIG_FILE}, profile: ${PROFIL
 hdr "SSM tree ${BASE}"
 PARAMS="$("${AWS[@]}" ssm get-parameters-by-path --path "$BASE" --recursive 2>/dev/null)"
 COUNT="$(echo "$PARAMS" | jq '.Parameters | length')"
-# 42 = 41 from the SSM stack (33 OUTPUT names incl. the ci_* isolation DBs
+# 41 = 40 from the SSM stack (32 OUTPUT names incl. the ci_* isolation DBs
 # + 8 app/* facts) + ec2/instanceId published by the EC2 stack. Keep in step
 # with EXPECTED_PARAM_COUNT in test/ssm-publishing.test.ts.
-if [[ "$COUNT" == "42" ]]; then ok "42 parameters published"; else bad "expected 42 parameters, found ${COUNT}"; fi
+if [[ "$COUNT" == "41" ]]; then ok "41 parameters published"; else bad "expected 41 parameters, found ${COUNT}"; fi
 
 pval() { echo "$PARAMS" | jq -r --arg n "$BASE/$1" '.Parameters[] | select(.Name==$n) | .Value'; }
 [[ "$(pval buckets/metadata)" == "$(val .metadataBucket)" ]] \

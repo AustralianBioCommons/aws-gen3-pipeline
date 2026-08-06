@@ -51,29 +51,33 @@ export class CodeBuildStack extends cdk.Stack {
         // (dbt-test-and-run service-role policy in the legacy deployment), translated
         // to derived names: dbt reads bronze, writes silver/gold/metadata/
         // validation, and runs everything through the env's Athena workgroup.
-        // Bronze is read-write since the dbt template's synthetic-data
-        // revision: the template may generate bronze via dbt models, writing
-        // s3://<bronze>/dbt/ and /dbt_ci/ exactly like silver and gold.
-        // Externally-ingested deployments still work — the ingest Glue job
-        // writes bronze through its own role, not this one.
+        // Bronze is read-only by design: it holds externally-ingested input
+        // only, and the template's synthetic demo data is generated at the
+        // silver layer. The ingest Glue job writes bronze through its own
+        // role, never this one.
         const rwBuckets = [
-            names.buckets.bronze,
             names.buckets.silver,
             names.buckets.gold,
             names.buckets.metadata,
             names.buckets.validation,
             names.buckets.athenaResults,
         ].map((b) => `arn:aws:s3:::${b}`);
+        const bronzeBucket = `arn:aws:s3:::${names.buckets.bronze}`;
 
         codeBuildRole.addToPolicy(new iam.PolicyStatement({
             sid: 'BucketList',
             actions: ['s3:ListBucket', 's3:GetBucketLocation'],
-            resources: rwBuckets,
+            resources: [...rwBuckets, bronzeBucket],
         }));
         codeBuildRole.addToPolicy(new iam.PolicyStatement({
             sid: 'ReadWriteObjects',
             actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:PutObjectAcl'],
             resources: rwBuckets.map((arn) => `${arn}/*`),
+        }));
+        codeBuildRole.addToPolicy(new iam.PolicyStatement({
+            sid: 'ReadOnlyBronzeObjects',
+            actions: ['s3:GetObject'],
+            resources: [`${bronzeBucket}/*`],
         }));
 
         codeBuildRole.addToPolicy(new iam.PolicyStatement({
@@ -116,29 +120,26 @@ export class CodeBuildStack extends cdk.Stack {
             resources: [
                 catalogArn,
                 ...glueDbArns([
-                    // Bronze is writable since the template's synthetic-data
-                    // revision (dbt-generated bronze); see the S3 note above.
-                    names.glueDatabases.bronze,
                     names.glueDatabases.silver,
                     names.glueDatabases.gold,
                     names.glueDatabases.metadata,
                     names.glueDatabases.validation,
                     // CI isolation: the ci dbt target writes these instead of
-                    // the real bronze/silver/gold databases.
-                    names.glueDatabases.ciBronze,
+                    // the real silver/gold databases.
                     names.glueDatabases.ciSilver,
                     names.glueDatabases.ciGold,
                 ]),
             ],
         }));
         codeBuildRole.addToPolicy(new iam.PolicyStatement({
-            sid: 'GlueReadDefaultDb',
+            sid: 'GlueReadOnlyBronze',
             actions: [
                 'glue:GetDatabase', 'glue:GetDatabases', 'glue:GetTable', 'glue:GetTables',
                 'glue:GetPartition', 'glue:GetPartitions',
                 'glue:GetTableVersion', 'glue:GetTableVersions', 'glue:SearchTables',
             ],
             resources: [
+                ...glueDbArns([names.glueDatabases.bronze]),
                 `arn:aws:glue:${region}:${accountId}:database/default`,
             ],
         }));

@@ -67,9 +67,9 @@ aws s3 cp sample_template.xlsx s3://<bronze-bucket>/submissions/<study_id>/
 One bronze table per node sheet, and re-depositing the same workbook is a no-op.
 Full detail in [DATA_LAYERS.md](DATA_LAYERS.md#the-supported-ingestion-path-gen3-metadata-templates).
 
-For a brand-new environment with no real data yet, the dbt template's
-`scripts/seed_bronze.py` creates synthetic bronze tables so you can exercise the
-whole pipeline immediately.
+For a brand-new environment with no real data yet, the dbt template's silver
+models generate deterministic synthetic data (`dbt build` alone — bronze stays
+empty), so you can exercise the whole pipeline immediately.
 
 ---
 

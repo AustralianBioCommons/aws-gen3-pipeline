@@ -20,18 +20,18 @@ The CDK creates a bucket *and* a Glue database per layer, per environment
 
 | Layer | Bucket | Glue database | Built by | Rebuilt by CI? |
 |---|---|---|---|---|
-| **Bronze** | `<project>-<env>-bronze-<account>-<region>` | `<project>_<env>_bronze_db` | **you** — any ingestion you like, or dbt-generated (the template's synthetic default) | Only when dbt-managed → `ci_<project>_<env>_bronze_db` |
+| **Bronze** | `<project>-<env>-bronze-<account>-<region>` | `<project>_<env>_bronze_db` | **you** — any ingestion you like | **No** |
 | **Silver** | `<project>-<env>-silver-<account>-<region>` | `<project>_<env>_silver_db` | dbt | Yes → `ci_<project>_<env>_silver_db` |
 | **Gold** | `<project>-<env>-gold-<account>-<region>` | `<project>_<env>_gold_db` | dbt | Yes → `ci_<project>_<env>_gold_db` |
 
-Every layer has a `ci_` twin so commit-triggered CI never writes the release
-warehouse (see [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 3 and the
-`ci` dbt target). Bronze's twin only sees writes when bronze itself is
-dbt-managed — the dbt template's synthetic-data revision generates
-deterministic bronze in SQL, which is the recommended starting point for a new
-environment. Deployments with real ingestion (Glue jobs, external tools)
-simply leave `ci_..._bronze_db` empty, and the boundary still holds:
-**externally-ingested bronze is an input to the platform, not a product of it.**
+Note what is missing from that table: **there is no `ci_` bronze database.** That
+is not an oversight. CI rebuilds silver and gold from bronze on every commit, so
+those two layers must be isolated from the release warehouse (see
+[OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 3 and the `ci` dbt target). Bronze is never
+rebuilt by dbt, so it needs no CI copy — which is the clearest statement of the
+boundary: **bronze is an input to the platform, not a product of it.** The dbt
+template's synthetic demo data is generated at the silver layer, so even the
+demo needs no bronze writes.
 
 ---
 
@@ -250,9 +250,10 @@ the module and write your own job. The contract above is what matters; how you
 satisfy it is not inspected. The S3 `ingest=true` tag contract these helpers
 honour is documented in the toolkit's `docs/INGEST.md`.
 
-The template's `scripts/seed_bronze.py` is a working end-to-end example: it
-creates synthetic bronze tables that the shipped silver models build on, so a
-freshly deployed environment has something to run before any real data arrives.
+The template's `silver_synth1_*` models are a working end-to-end example:
+they generate deterministic synthetic data in SQL at the silver layer, so a
+freshly deployed environment has something to run before any real data
+arrives — without dbt ever writing bronze.
 
 ### The toolkit's copy is behind the monolith
 

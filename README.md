@@ -99,10 +99,11 @@ g3dt pipeline status --env test --which dbtTestAndRun
 g3dt ec2 up --env test --wait                   # start the job box
 ```
 
-For a brand-new environment with no real data yet, the dbt template ships
-`scripts/seed_bronze.py`, which creates synthetic bronze tables so you can exercise
-the whole pipeline end-to-end on day one. Day-to-day operations live in
-[docs/OPERATIONS.md](docs/OPERATIONS.md).
+For a brand-new environment with no real data yet, the dbt template's silver
+models generate deterministic synthetic data in SQL — a plain `dbt build`
+produces the whole warehouse (bronze stays empty; it is the ingest target),
+so you can exercise the pipeline end-to-end on day one. Day-to-day operations
+live in [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ## Deploying it
 
