@@ -20,17 +20,10 @@ deployment:
 | `deploy.sh` | Clone upstream @ pin → overlay → test → diff → deploy |
 | `.checkout/` | Throwaway upstream clone (gitignored, recreated every run) |
 
-Three properties fall out of that shape, and they are the whole point:
-
-- **Config with real IDs stays private.** Account numbers, connection ARNs,
-  AMIs, Gen3 domains — everything this public repo's gitignore keeps out of
-  `config/` — is committed in the wrapper, where it belongs.
-- **You own no core code, so you can never diverge.** `deploy.sh` clones the
-  upstream repo fresh at the pinned tag on every run and deploys from inside
-  that clone (`.checkout/`). There is no copied stack code to drift.
-- **Upgrades are a version bump, not a merge.** Change one line in
-  `UPSTREAM_VERSION`, diff, deploy. Rollback is reverting that line. See
-  [Upgrading](#upgrading).
+That shape is the whole point: real IDs stay in a private repo, you own no
+core code so you can never diverge, and upgrades are a one-line version bump
+(rollback: revert the line — see [Upgrading](#upgrading)). The full reasoning:
+[CONCEPTS.md section 3](CONCEPTS.md#3-the-deployment-wrapper--deploy-without-forking).
 
 ## Creating a wrapper
 
@@ -38,8 +31,12 @@ Scaffold it from any checkout of this repo:
 
 ```bash
 git clone --depth 1 https://github.com/AustralianBioCommons/aws-gen3-pipeline.git /tmp/g3p
-/tmp/g3p/scripts/init-wrapper.sh ~/code/my-gen3-deploy --project myproject --envs test,prod
+/tmp/g3p/scripts/init-wrapper.sh ~/code/<project>-pipeline-deploy --project <project> --envs test,prod
 ```
+
+(The `/tmp/g3p` clone is a throwaway — it only supplies the script and the
+template. If the script errors with `no upstream tag found`, the shallow
+clone's branch tip isn't tagged; pass `--upstream-version vX.Y.Z` explicitly.)
 
 `init-wrapper.sh` flags:
 
@@ -66,9 +63,9 @@ What gets seeded:
 Then fill in the configs and push — to a **private** repo:
 
 ```bash
-cd ~/code/my-gen3-deploy
-$EDITOR config/myproject.test.json
-gh repo create <org>/my-gen3-deploy --private --source . --push
+cd ~/code/<project>-pipeline-deploy
+$EDITOR config/<project>.<env>.json
+gh repo create <org>/<project>-pipeline-deploy --private --source . --push
 ```
 
 > **Never make the wrapper a fork of this repo.** GitHub forks of public
@@ -133,9 +130,9 @@ the wrapper's `glue-scripts/`:
 
 ```bash
 cp my_job.py glue-scripts/
-$EDITOR config/myproject.test.json
+$EDITOR config/<project>.<env>.json
 #   "customJobs": [{ "key": "myJob", "scriptFile": "my_job.py" }]
-./deploy.sh --profile <your-profile> --env test --diff
+./deploy.sh --profile <your-profile> --env <env> --diff
 ```
 
 Overlay semantics, and the two guard rails around them:
@@ -216,7 +213,8 @@ added upstream is versioned and tested for all of them.
 | Doc | What it's for |
 |---|---|
 | [../README.md](../README.md) | What the pipeline is and the config model |
-| [QUICKSTART.md](QUICKSTART.md) | The copy-paste quickstarts |
+| [CONCEPTS.md](CONCEPTS.md) | Why the wrapper (and everything else) is shaped the way it is |
+| [QUICKSTART.md](QUICKSTART.md) | The minimal end-to-end setup path |
 | [RUNBOOK.md](RUNBOOK.md) | The full setup path: tools, AWS SSO, bootstrap, deploy, post-deploy steps, first release |
 | [CONFIG_GUIDE.md](CONFIG_GUIDE.md) | Authoring the per-env config, field by field |
 | [../wrapper-template/README.md](../wrapper-template/README.md) | The README every wrapper is born with (its quickstarts) |

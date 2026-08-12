@@ -30,7 +30,8 @@ Two independent lifecycles run over that:
 - **Data releases** (`data-v*` tags) ship a versioned snapshot of the warehouse.
 
 They are deliberately decoupled — a data release does not require a code change,
-and vice versa. See [DATA_LAYERS.md](DATA_LAYERS.md) for the layer contract.
+and vice versa. See [DATA_LAYERS.md](DATA_LAYERS.md) for the layer contract and
+[CONCEPTS.md](CONCEPTS.md) for the fuller version of this mental model.
 
 ---
 

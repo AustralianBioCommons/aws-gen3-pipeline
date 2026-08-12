@@ -20,7 +20,8 @@ Parameter Store on deploy.
 
 > **The one rule:** if you are about to type a *resource name* into this file, stop —
 > it belongs in `deriveNames()`. The schema ([`../lib/config.ts`](../lib/config.ts))
-> makes this hard to get wrong: there are no name fields.
+> makes this hard to get wrong: there are no name fields. (Why the system is built
+> this way: [CONCEPTS.md section 4](CONCEPTS.md#4-configuration-inputs-outputs-and-what-ssm-achieves).)
 
 ```
 config/<project>.<env>.json ──► cdk deploy --all -c env=<env> ──► SSM /{project}/{env}/…
@@ -43,10 +44,11 @@ The context flags behave identically for **every** CDK command — `list`, `synt
 the config the same way. (`diff`/`deploy` additionally need `--profile <env-profile>`
 to talk to CloudFormation; `list`/`synth` are fully offline.)
 
-> **Recommended: fork this repo per project.** Keep one project's config files per
-> checkout — then every command is just `cdk <cmd> -c env=<env>` with no project flag,
-> and the fork's history tracks that project's infrastructure decisions. Generic
-> improvements flow back via PRs to the template repo.
+> **Recommended: one deployment wrapper per project.** A wrapper holds exactly one
+> project's config files, so every command is just `cdk <cmd> -c env=<env>` with no
+> project flag, and the wrapper's history tracks that project's infrastructure
+> decisions ([WRAPPER_GUIDE.md](WRAPPER_GUIDE.md) — never a fork of this repo, which
+> could not be made private). Generic improvements flow upstream via PRs.
 
 Files are named `config/<projectId>.<env>.json`. The loader finds them by the
 `.<env>.json` suffix (the project id is **not** hard-coded); if you do keep several
@@ -94,7 +96,7 @@ Copy this, then fill every `<-` using Section 3:
     // "keyName": "..."               // <- OMIT unless you need break-glass SSH
   },
 
-  "toolkitVersion": "2.1.2",          // <- Section 3.5 PyPI pin for the g3dt toolkit
+  "toolkitVersion": "3.2.0",          // <- Section 3.5 PyPI pin for the g3dt toolkit
 
   "gen3": {                           //  Section 3.6 facts about this env's Gen3 commons
     "dictionaryVersion": "v1.0.0",
@@ -295,7 +297,7 @@ for whatever your account returns.
 | Connection | `aws codeconnections list-connections …` | `<org>-github`, AVAILABLE, `…connection/00000000-0000-0000-0000-000000000000` |
 | AMI | `aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64 …` | `ami-00000000000000000` (yours is the real current id) |
 | Key pair | skip — SSM-only access | (omitted) |
-| Toolkit | latest **published** toolkit release on PyPI (Section 3.5) | `1.3.0` |
+| Toolkit | latest **published** toolkit release on PyPI (Section 3.5) | `3.2.0` |
 | Gen3 facts | `g3dt config show --env <env>` on a sibling env, or the commons' devops engineer | see below |
 
 ```json
@@ -325,7 +327,7 @@ for whatever your account returns.
     "ami": "ami-00000000000000000"
   },
 
-  "toolkitVersion": "1.3.0",
+  "toolkitVersion": "3.2.0",
 
   "gen3": {
     "dictionaryVersion": "v1.0.0",

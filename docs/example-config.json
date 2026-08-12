@@ -24,7 +24,7 @@
     "alertEmail": "data-team@example.org"
   },
 
-  "toolkitVersion": "1.3.0",
+  "toolkitVersion": "3.2.0",
 
   "gen3": {
     "dictionaryVersion": "v1.0.0",
