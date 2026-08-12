@@ -77,7 +77,7 @@ gh repo create <org>/my-gen3-deploy --private --source . --push
 > and push the scaffolded directory to it (as above).
 
 First deploy from the wrapper (details for bootstrap and the post-deploy
-steps: [FIRST_TIME_SETUP.md](FIRST_TIME_SETUP.md)):
+steps: [RUNBOOK.md](RUNBOOK.md)):
 
 ```bash
 aws sso login --profile <your-profile>
@@ -217,6 +217,6 @@ added upstream is versioned and tested for all of them.
 |---|---|
 | [../README.md](../README.md) | What the pipeline is and the config model |
 | [QUICKSTART.md](QUICKSTART.md) | The copy-paste quickstarts |
-| [FIRST_TIME_SETUP.md](FIRST_TIME_SETUP.md) | Tools, AWS SSO, bootstrap, post-deploy steps, first release |
+| [RUNBOOK.md](RUNBOOK.md) | The full setup path: tools, AWS SSO, bootstrap, deploy, post-deploy steps, first release |
 | [CONFIG_GUIDE.md](CONFIG_GUIDE.md) | Authoring the per-env config, field by field |
 | [../wrapper-template/README.md](../wrapper-template/README.md) | The README every wrapper is born with (its quickstarts) |

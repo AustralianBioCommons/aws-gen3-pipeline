@@ -131,9 +131,9 @@ Beyond standard transformations, this pipeline enforces strict quality gates and
 
 ## 3. Getting Started
 
-> **Setting up from scratch?** [FIRST_TIME_SETUP.md](FIRST_TIME_SETUP.md) is
-> the step-by-step on-ramp (tool installs, AWS SSO, deploy-to-verified, the
-> `g3dt` CLI, first data release); this section covers the concepts.
+> **Setting up from scratch?** [RUNBOOK.md](RUNBOOK.md) is the step-by-step
+> on-ramp (tool installs, AWS SSO, deploy-to-verified, the `g3dt` CLI, first
+> data release); this section covers the contributor-side mechanics.
 
 ### Prerequisites
 Before you begin, ensure you have the following installed:

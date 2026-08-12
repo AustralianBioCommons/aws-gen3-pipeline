@@ -5,8 +5,9 @@ the short version; when you need to know *why* something behaves the way it
 does, or what to do when it breaks, follow the link into
 [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md).
 
-**Setting up for the first time?** Do [FIRST_TIME_SETUP.md](FIRST_TIME_SETUP.md)
-first — this guide assumes an environment already exists.
+**Setting up for the first time?** Do [QUICKSTART.md](QUICKSTART.md) (or the
+fully-explained [RUNBOOK.md](RUNBOOK.md)) first — this guide assumes an
+environment already exists.
 
 > Everywhere below, substitute your project and environment for `myproject` / `test`.
 > Every command is `g3dt`, the toolkit CLI, installed from PyPI and pinned per

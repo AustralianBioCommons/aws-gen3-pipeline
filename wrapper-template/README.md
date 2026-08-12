@@ -28,7 +28,7 @@ npx cdk bootstrap aws://<account-id>/<region> --profile <your-profile>
 ./deploy.sh --profile <your-profile> --env <env>          # deploy for real
 ```
 
-Full guide → upstream [`docs/FIRST_TIME_SETUP.md`](https://github.com/AustralianBioCommons/aws-gen3-pipeline/blob/main/docs/FIRST_TIME_SETUP.md)
+Full guide → upstream [`docs/RUNBOOK.md`](https://github.com/AustralianBioCommons/aws-gen3-pipeline/blob/main/docs/RUNBOOK.md)
 and [`docs/CONFIG_GUIDE.md`](https://github.com/AustralianBioCommons/aws-gen3-pipeline/blob/main/docs/CONFIG_GUIDE.md).
 
 ## Quickstart: add a custom Glue job
