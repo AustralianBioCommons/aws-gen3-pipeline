@@ -45,13 +45,14 @@ Twelve CDK stacks (TypeScript), which together provide:
 | **Zero name drift** — every created resource name is published to Parameter Store; runtime tooling reads names from there, never from checked-out code | SSM Parameter Store |
 | **Networking** — its own VPC; reaches internet-facing commons out of the box, or peers into a VPN-secured Gen3 VPC | VPC, peering |
 
-<!-- TODO: architecture diagram -->
+(Architecture diagram and the ideas behind each piece:
+[docs/CONCEPTS.md](docs/CONCEPTS.md).)
 
-Configuration follows one rule: humans author **inputs** (account, region, Gen3 facts,
-custom Glue jobs) in a single JSON file per environment; every resource **name** is an
-**output**, derived by one pure function and published to SSM. Nobody ever types a
-bucket name twice. Details: [docs/CONFIG_GUIDE.md](docs/CONFIG_GUIDE.md) and
-[docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md).
+Configuration follows one rule: humans author **inputs** in a single JSON file per
+environment; every resource **name** is an **output**, derived and published to SSM —
+nobody ever types a bucket name twice. The why:
+[docs/CONCEPTS.md](docs/CONCEPTS.md#4-configuration-inputs-outputs-and-what-ssm-achieves);
+the fields: [docs/CONFIG_GUIDE.md](docs/CONFIG_GUIDE.md).
 
 ## What using it looks like
 
@@ -81,7 +82,7 @@ everything it needs from the SSM parameters the pipeline publishes, so it requir
 credentials and nothing else — no repo checkout, no config files. A taste:
 
 ```bash
-pip install gen3-dataops-toolkit
+pipx install gen3-dataops-toolkit
 
 g3dt config show --env test                     # what names am I actually pointed at?
 g3dt dict pull && g3dt dict upload --env test   # deploy a data-dictionary version
@@ -112,13 +113,14 @@ path is a private deployment wrapper — a tiny repo holding only your config an
 Glue jobs, pinned to a released version of this code — so upgrading is a version bump
 and your account IDs never touch a public repo.
 
-**→ [docs/QUICKSTART.md](docs/QUICKSTART.md)** — create a wrapper, deploy from a
-checkout, add a custom Glue job, upgrade a deployment.
+The documentation is three tiers deep — understand it, deploy it fast, or follow
+every step — backed by reference guides:
 
 | Doc | Read it when |
 |---|---|
-| [docs/RUNBOOK.md](docs/RUNBOOK.md) | **The end-to-end setup path** — pipeline + dbt repo + CLI, from nothing to a validated data release |
-| [docs/QUICKSTART.md](docs/QUICKSTART.md) | Deploying this, in any of the supported ways |
+| [docs/CONCEPTS.md](docs/CONCEPTS.md) | **Understand it** — what each piece is for, what problems the design solves, glossary |
+| [docs/QUICKSTART.md](docs/QUICKSTART.md) | **The fastest working deploy** — nothing to a validated release, minimal ceremony |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | **Every step, explained** — the same journey in full detail, with checks and troubleshooting |
 | [docs/WRAPPER_GUIDE.md](docs/WRAPPER_GUIDE.md) | Creating, operating, or upgrading a deployment wrapper |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | **Day-to-day: what to run** — the quick guide |
 | [docs/OPERATIONS_DETAIL.md](docs/OPERATIONS_DETAIL.md) | Something behaved unexpectedly, or you are changing something structural |
