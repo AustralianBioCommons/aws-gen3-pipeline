@@ -21,6 +21,7 @@ release notes):
 |---|---|
 | aws-gen3-pipeline | ≥ v2.2.0 |
 | gen3-dataops-toolkit | ≥ 3.2.0 |
+| gen3-validator | ≥ 2.2.0 (resolved automatically as a toolkit dependency) |
 | gen3-dbt-template | silver-generators revision or later |
 
 **Placeholders.** Angle-bracketed values are yours to fill in; everything else
@@ -375,24 +376,6 @@ bucket so the Glue role can read it:
 curl -s https://s3.amazonaws.com/dictionary-artifacts/datadictionary/develop/schema.json \
   -o /tmp/schema.json
 
-# WORKAROUND (until gen3_validator resolves $refs file-aware): strip the
-# documentation-only `term`/`terms` reference blocks — validation semantics
-# are unchanged, but the resolver otherwise crashes on refs into _terms.yaml.
-python3 - <<'EOF'
-import json
-s = json.load(open("/tmp/schema.json"))
-def strip(n):
-    if isinstance(n, dict):
-        for k in ("term", "terms"):
-            if k in n and isinstance(n[k], (dict, list)):
-                del n[k]
-        for v in n.values(): strip(v)
-    elif isinstance(n, list):
-        for v in n: strip(v)
-strip(s)
-json.dump(s, open("/tmp/schema.json", "w"))
-EOF
-
 aws s3 cp /tmp/schema.json \
   s3://<project>-<env>-metadata-<account-id>-<region>/schema/gen3_datadictionary_develop.json \
   --profile <your-profile>
@@ -581,7 +564,7 @@ SELECT count(*) FROM <project>_<env>_silver_db.silver_synth1_case;
 | `g3dt`: `No SSM parameters found under /<project>/<env>` | Env not deployed, or wrong `project:` in `~/.g3dt/g3dt.yaml` |
 | Pipelines exist but the Source stage fails | CodeConnections connection still `PENDING` — it needs the one-time console handshake ([CONFIG_GUIDE.md section 3.3](CONFIG_GUIDE.md#33-repo--the-dbt-repository-that-drives-cicd)) |
 | Wrong env's names printed by `g3dt config show` | Wrong `--env`, or wrong `-c env=` at deploy time — re-check before running anything that writes |
-| Validation job: `KeyError` inside `gen3_validator.resolve_schema` | Dictionary has `term`/`terms` refs into `_terms.yaml` (the official one does) — apply the strip in step 6 |
+| Validation job: `SchemaResolutionError` (or, pre-2.2.0, `KeyError` in `gen3_validator.resolve_schema`) | A structural `$ref` in the dictionary is genuinely broken — the message names the ref and file. (Older gen3-validator < 2.2.0 also crashed on the official dictionary's `term` refs; ensure the pairing table's versions) |
 | Validation fails listing a "study" per node with empty JSON filenames later | Model names missing the study segment — use `<layer>_<study>_<node>` |
 | Validation / write-release-jsons Step Function stage fails | Check the Glue job run logs (`/aws-glue/python-jobs/output`); scripts deploy automatically on every deploy (step 4) |
 | `write-release-jsons` fails with `ConcurrentRunsExceededException` right after a release | It auto-runs post-release; your manual start collided with it. Check the newest execution — the automatic one likely SUCCEEDED |

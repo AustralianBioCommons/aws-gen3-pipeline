@@ -79,8 +79,7 @@ deferred the Gen3 secret ([RUNBOOK step 4](RUNBOOK.md#4-first-deploy)):
 ```
 
 **8. Stage the test data dictionary** into the metadata bucket and point
-`gen3.schemaS3Uri` at it, then redeploy — the exact commands (including a
-required schema-cleanup workaround) are in
+`gen3.schemaS3Uri` at it, then redeploy — the exact commands are in
 [RUNBOOK step 6](RUNBOOK.md#6-stage-the-default-test-dictionary).
 
 **9. Trigger the first CI build** — push anything to the dbt repo's main
