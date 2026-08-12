@@ -9,7 +9,9 @@ the next project.
 What the platform does require is a small contract about **where data lands**
 and **what shape it is in by the time validation runs**. Everything below the
 "Contract" heading is a recommendation you can ignore; the contract itself is
-what the deployed infrastructure and the Glue jobs actually depend on.
+what the deployed infrastructure and the Glue jobs actually depend on. (A
+gentler introduction to the three layers:
+[CONCEPTS.md section 5](CONCEPTS.md#5-the-medallion-layers-and-the-data-contract).)
 
 ---
 

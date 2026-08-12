@@ -1,98 +1,120 @@
 # Quickstart
 
-Short, copy-pasteable paths for the four common tasks. Each links to the full
-guide for detail. New to the project? Read the [README](../README.md) for what
-the pipeline is, then follow [RUNBOOK.md](RUNBOOK.md) — the ordered end-to-end
-setup path (pipeline + dbt repo + CLI) that these quickstarts are excerpts of.
+The minimum working path from nothing to a **validated synthetic data
+release**, via a private deployment wrapper. One sentence per step; every
+step is explained in full in [RUNBOOK.md](RUNBOOK.md), and the ideas behind
+it in [CONCEPTS.md](CONCEPTS.md).
 
-## Prerequisites
+Fill in the placeholders with your values: `<project>` (e.g. `myproject`),
+`<env>` (e.g. `test`), `<account-id>`, `<region>`, `<your-profile>` (an AWS
+SSO profile), `<org>` (your GitHub org).
 
-- [Node.js](https://nodejs.org/) (current LTS)
-- [AWS CLI](https://aws.amazon.com/cli/) v2, configured with an SSO profile for the target account
-- The CDK CLI is a pinned dev-dependency — use `npx cdk ...`; no global install needed
+**Prerequisites** (installs and SSO setup: [RUNBOOK step 0](RUNBOOK.md#0-prerequisites)):
+Node.js LTS, AWS CLI v2 with an SSO profile logged in (`aws sso login
+--profile <your-profile>`), Python 3.11+ with pipx, jq, and a GitHub org for
+two private repos.
 
-## Create your deployment wrapper (recommended)
-
-Adopters deploy from a small **private** wrapper repo that holds only real
-config, custom Glue scripts, and a pinned upstream version — never a copy of
-this code, so upgrades are a version bump, not a merge.
+**1. Create your deployment wrapper** — a fresh private repo holding only
+your config, pinned to an upstream release
+([RUNBOOK step 1a](RUNBOOK.md#1a-the-deployment-wrapper-holds-your-real-config--keep-it-private)):
 
 ```bash
 git clone --depth 1 https://github.com/AustralianBioCommons/aws-gen3-pipeline.git /tmp/g3p
-/tmp/g3p/scripts/init-wrapper.sh ~/code/my-gen3-deploy --project myproject --envs test
-cd ~/code/my-gen3-deploy
-$EDITOR config/myproject.test.json      # fill in real values — field-by-field: CONFIG_GUIDE.md
-./deploy.sh --profile <your-profile> --env test --diff   # review; drop --diff to deploy
+/tmp/g3p/scripts/init-wrapper.sh ~/code/<project>-pipeline-deploy \
+  --project <project> --envs <env> --upstream-version v2.2.0   # use the latest release tag
+cd ~/code/<project>-pipeline-deploy
+gh repo create <org>/<project>-pipeline-deploy --private --source . --push
 ```
 
-Full guide → [WRAPPER_GUIDE.md](WRAPPER_GUIDE.md)
-
-## Deploy from a checkout (contributors/evaluation)
+**2. Create your dbt repo** from the template — its built-in models generate
+synthetic data, so the pipeline works before any real data exists
+([RUNBOOK step 1b](RUNBOOK.md#1b-the-dbt-repo-drives-silver-and-gold)):
 
 ```bash
-git clone https://github.com/AustralianBioCommons/aws-gen3-pipeline.git && cd aws-gen3-pipeline
-cp docs/example-config.json config/myproject.test.json   # config/*.json is gitignored here
-$EDITOR config/myproject.test.json      # field-by-field: CONFIG_GUIDE.md
-npm ci && npm test
-npx cdk bootstrap --profile <your-profile>               # first time per account+region only
-npx cdk diff "*" -c env=test --profile <your-profile>
-npx cdk deploy "*" -c env=test --profile <your-profile>
-./scripts/integration_test.sh --profile <your-profile> --env test
+gh repo create <org>/<project>-dbt \
+  --template AustralianBioCommons/gen3-dbt-template --private
 ```
 
-Full guide → [FIRST_TIME_SETUP.md](FIRST_TIME_SETUP.md)
+**3. Create the AWS-side prerequisites** — a CodeConnections connection to
+your GitHub org (console: Developer Tools → Connections → Create → GitHub;
+note the ARN) and, when you have a Gen3 API key, the secret
+`<project>_<env>_gen3_api_key.json` (deferrable — one WARN in step 7 until it
+exists) ([RUNBOOK step 2](RUNBOOK.md#2-aws-prerequisites-the-config-will-reference)).
 
-## Add a custom Glue job
+**4. Fill in the config** `config/<project>.<env>.json` — the fields that
+matter: `accountId`, `region`, `repo.fullName` (your dbt repo) +
+`repo.codeStarConnectionArn`, `ec2.ami`, `toolkitVersion` (`3.2.0`), and the
+`gen3.*` facts ([RUNBOOK step 3](RUNBOOK.md#3-fill-in-the-config), field
+reference [CONFIG_GUIDE.md](CONFIG_GUIDE.md)). Commit and push.
 
-Deployment-specific python-shell jobs are declared in config — no stack code to edit.
+**5. Bootstrap (once per account+region) and deploy**
+([RUNBOOK step 4](RUNBOOK.md#4-first-deploy)):
 
 ```bash
-cp my_job.py glue-scripts/              # in a wrapper: its own glue-scripts/ (overlaid at deploy time)
-$EDITOR config/myproject.test.json
-#   "customJobs": [{ "key": "myJob", "scriptFile": "my_job.py" }]
-npx cdk diff "*" -c env=test --profile <your-profile>    # wrapper: ./deploy.sh ... --diff
-npx cdk deploy "*" -c env=test --profile <your-profile>  # wrapper: ./deploy.sh ...
+npx cdk bootstrap aws://<account-id>/<region> --profile <your-profile>
+./deploy.sh --profile <your-profile> --env <env> --diff    # review first
+./deploy.sh --profile <your-profile> --env <env>           # ~10-20 min
 ```
 
-Full guide → [CONFIG_GUIDE.md#custom-glue-jobs](CONFIG_GUIDE.md#custom-glue-jobs)
-
-## Upgrade a wrapper deployment
+**6. Install and point the operator CLI**
+([RUNBOOK step 5](RUNBOOK.md#5-configure-the-cli-toolkit)):
 
 ```bash
-cd ~/code/my-gen3-deploy
-echo v1.1.0 > UPSTREAM_VERSION          # read the upstream release notes first
-./deploy.sh --profile <your-profile> --env test --diff
-./deploy.sh --profile <your-profile> --env test
-# rollback = revert the UPSTREAM_VERSION change and deploy again
+pipx install gen3-dataops-toolkit
+mkdir -p ~/.g3dt && cat > ~/.g3dt/g3dt.yaml <<EOF
+project: <project>
+region: <region>
+default_env: <env>
+profiles:
+  <env>: <your-profile>
+EOF
+g3dt config show --env <env>       # every resolved name — read them aloud
 ```
 
-Full guide → [WRAPPER_GUIDE.md#upgrading](WRAPPER_GUIDE.md#upgrading)
+**7. Verify the deployment** — expect all PASS, plus exactly one WARN if you
+deferred the Gen3 secret ([RUNBOOK step 4](RUNBOOK.md#4-first-deploy)):
 
-## Reference: naming conventions and the SSM tree
+```bash
+./.checkout/scripts/integration_test.sh --profile <your-profile> --env <env>
+```
 
-Naming conventions (pinned by `test/names.test.ts` — changing them is a breaking change
-for every SSM consumer):
+**8. Stage the test data dictionary** into the metadata bucket and point
+`gen3.schemaS3Uri` at it, then redeploy — the exact commands are in
+[RUNBOOK step 6](RUNBOOK.md#6-stage-the-default-test-dictionary).
 
-| Resource class | Pattern | Example |
-|---|---|---|
-| S3 buckets | `<project>-<env>-<suffix>-<account>-<region>` | `etl-test-metadata-123456789012-ap-southeast-2` |
-| Glue databases | `<project>_<env>_<suffix>_db` | `etl_test_silver_db` |
-| Everything else | `<project>-<env>-<suffix>` | `etl-test-dbt-test-and-run` |
+**9. Trigger the first CI build** — push anything to the dbt repo's main
+branch, then watch it land in the isolated `ci_*` databases
+([RUNBOOK step 7](RUNBOOK.md#7-first-dbt-build-ci)):
 
-The SSM tree per env: `meta/*`, `buckets/*`, `glue/db/*`, `athena/*`, `release/*`,
-`roles/*`, `codebuild/*`, `codepipeline/*`, `stepfunctions/*`, `ec2/*`, plus the
-`app/*` Gen3 facts mirrored for the CLI. `test/ssm-publishing.test.ts` is the drift
-guard: every named resource must have a matching SSM parameter or the suite fails.
+```bash
+g3dt pipeline logs --env <env> --which dbtTestAndRun --follow
+```
 
-## Useful commands
+**10. Cut a data release** ([RUNBOOK step 8](RUNBOOK.md#8-cut-a-data-release)):
 
-- `npm run build` — compile TypeScript to JS
-- `npm run test` — run the jest unit tests (naming convention + SSM drift guard)
-- `npx cdk list -c env=test` — list the stacks for an environment
-- `npx cdk synth -c env=test` — emit the synthesized CloudFormation template
-- `npx cdk diff -c env=test --profile <p>` — compare deployed stacks with current state
-- `npx cdk deploy --all -c env=test --profile <p>` — deploy the whole pipeline for an environment
+```bash
+cd <your-dbt-repo>
+git tag data-v0.1.0 && git push origin data-v0.1.0
+g3dt pipeline status --env <env> --which writeReleaseInfo
+```
 
-All of these accept `-c project=<projectId>` too (only needed when `config/` holds
-several projects for the same env — unnecessary in a wrapper, which holds one
-project's configs).
+**11. Validate it** — green means every record is schema-clean
+([RUNBOOK step 9](RUNBOOK.md#9-validate)):
+
+```bash
+aws stepfunctions start-execution \
+  --state-machine-arn arn:aws:states:<region>:<account-id>:stateMachine:<project>-<env>-validation \
+  --profile <your-profile>
+```
+
+Done: the gold bucket now holds a versioned `release_jsons/v0.1.0/` folder —
+the artifact a Gen3 deployment consumes
+([RUNBOOK step 10](RUNBOOK.md#10-the-end-state--a-versioned-release-folder)).
+
+---
+
+- Every step explained, with checks and troubleshooting: **[RUNBOOK.md](RUNBOOK.md)**
+- Why it works this way: **[CONCEPTS.md](CONCEPTS.md)**
+- Day-to-day operation: **[OPERATIONS.md](OPERATIONS.md)**
+- Contributors deploying from a checkout of this repo:
+  **[DEVELOPER_GUIDE.md section 6](DEVELOPER_GUIDE.md#6-deployment)**

@@ -6,23 +6,14 @@ Welcome to the **Gen3 AWS Data Pipeline** project! This guide is designed to hel
 
 ## Key Terms
 
-If you are new to AWS or data engineering, here is a quick reference for the terminology used throughout this guide:
-
-| Term | What it means |
-|------|---------------|
-| **CDK (Cloud Development Kit)** | An AWS framework that lets you define cloud infrastructure in code (TypeScript in our case) instead of clicking through the AWS Console. |
-| **Stack** | A CDK concept — a single deployable unit of AWS resources. Think of it as a group of related infrastructure (e.g., "all the S3 buckets" or "all the IAM roles"). |
-| **Construct** | A CDK building block. A Stack is made up of Constructs (e.g., an S3 Bucket, a Glue Job). |
-| **CloudFormation** | The AWS service that CDK compiles down to. CDK generates CloudFormation templates, which AWS uses to create/update resources. |
-| **S3 (Simple Storage Service)** | AWS object storage — where all data files (Parquet, JSON, CSV) live. |
-| **Glue** | AWS managed ETL service. In this project we use **Glue Jobs** (Python Shell scripts) and the **Glue Data Catalog** (a metadata registry of databases and tables). |
-| **Athena** | A serverless SQL query engine that reads data directly from S3. Used by dbt to run transformations. |
-| **dbt (Data Build Tool)** | An open-source tool that compiles SQL templates (Jinja) and submits them to a query engine (Athena). It manages the Silver and Gold layers. |
-| **Step Functions** | AWS service for orchestrating multi-step workflows as state machines (e.g., "run Job A, then Job B"). |
-| **CodePipeline / CodeBuild** | AWS CI/CD services. CodePipeline defines the stages (Source → Build → Deploy); CodeBuild runs the actual build commands. |
-| **CodeStar Connection** | An AWS-managed OAuth link between your AWS account and a GitHub repository. Used by CodePipeline to pull source code. |
-| **Medallion Architecture** | A data lake design pattern with three layers: **Bronze** (raw), **Silver** (cleaned), **Gold** (business-ready). |
-| **IAM (Identity and Access Management)** | AWS service that controls *who* (roles/users) can do *what* (actions) on *which* resources. |
+New to AWS or data engineering? The full glossary — CDK, stacks,
+CloudFormation, S3, Glue, Athena, dbt, Step Functions, SSM, Iceberg,
+medallion architecture, indexd, and the rest — lives in
+[CONCEPTS.md](CONCEPTS.md#glossary), alongside a plain-language explanation
+of how the whole system fits together. Read that first; this guide assumes
+those terms from here on. (One term specific to this guide: a **Construct**
+is a CDK building block — a Stack is made up of Constructs, e.g. an S3
+bucket or a Glue job.)
 
 ---
 
@@ -100,9 +91,9 @@ This project implements a **"Medallion" Data Lake Architecture**, enforcing a st
     -   **State**: Managed by dbt.
     -   **Purpose**: Data is cleaned, standardized, and joined.
     -   **Access**: The pipeline (via dbt) has full **Read/Write** access to create tables and overwrite partitions.
-3.  **Gold Layer (Business Aggregates)**:
+3.  **Gold Layer (Release and Export Shape)**:
     -   **State**: Managed by dbt.
-    -   **Purpose**: Data is aggregated for specific business use cases (e.g., reporting dashboards).
+    -   **Purpose**: What gets exported to release JSONs and uploaded to Gen3 — silver plus the things only known at release time (e.g. indexd `object_id` joins). See [DATA_LAYERS.md](DATA_LAYERS.md).
     -   **Access**: Full **Read/Write** access.
 
 ### The Execution Engine: AWS Athena
@@ -131,9 +122,9 @@ Beyond standard transformations, this pipeline enforces strict quality gates and
 
 ## 3. Getting Started
 
-> **Setting up from scratch?** [FIRST_TIME_SETUP.md](FIRST_TIME_SETUP.md) is
-> the step-by-step on-ramp (tool installs, AWS SSO, deploy-to-verified, the
-> `g3dt` CLI, first data release); this section covers the concepts.
+> **Setting up from scratch?** [RUNBOOK.md](RUNBOOK.md) is the step-by-step
+> on-ramp (tool installs, AWS SSO, deploy-to-verified, the `g3dt` CLI, first
+> data release); this section covers the contributor-side mechanics.
 
 ### Prerequisites
 Before you begin, ensure you have the following installed:
@@ -172,7 +163,9 @@ npm test
 > **Writing a config file?** Use the step-by-step [Config Guide](CONFIG_GUIDE.md) —
 > it documents every field, where to find its value, and how to validate the result.
 
-There are exactly two kinds of values, and the split is the core design rule of this repo:
+There are exactly two kinds of values, and the split is the core design rule of this
+repo (the reasoning and what SSM buys us:
+[CONCEPTS.md section 4](CONCEPTS.md#4-configuration-inputs-outputs-and-what-ssm-achieves)):
 
 - **INPUTS** — values a human chooses. They live in one file per environment,
   `config/<project>.<env>.json` (e.g. `config/myproject.test.json`). `config/*.json` is
@@ -210,7 +203,7 @@ A complete input file (see `docs/example-config.json` for the annotated template
     "instanceType": "t3.micro",
     "ami": "ami-00000000000000000"
   },
-  "toolkitVersion": "1.3.0",
+  "toolkitVersion": "3.2.0",
   "gen3": {
     "dictionaryVersion": "v1.1.6",
     "awsSecretName": "myproject_test_gen3_api_key.json",
@@ -528,22 +521,43 @@ By default, this project triggers builds via **AWS CodePipeline** when code is p
 
 ## 6. Deployment
 
-To deploy changes to AWS:
+> Adopters deploy through a private **deployment wrapper**, not from a
+> checkout of this repo — see [QUICKSTART.md](QUICKSTART.md) and
+> [WRAPPER_GUIDE.md](WRAPPER_GUIDE.md). Deploying straight from a checkout,
+> as below, is for contributors and evaluation.
 
-1.  **Authenticate**: Ensure your terminal session has valid AWS credentials (`aws sts get-caller-identity`).
-2.  **Diff**: Check what will change.
-    ```bash
-    npx cdk diff -c env=test --profile <your-profile>
-    ```
-3.  **Deploy**:
-    ```bash
-    npx cdk deploy --all -c env=test --profile <your-profile>
-    ```
-4.  **Verify the published names**:
-    ```bash
-    aws ssm get-parameters-by-path --path /myproject/test --recursive \
-      --query 'Parameters[].Name' --output text --profile <your-profile>
-    ```
+### Deploy from a checkout
+
+```bash
+git clone https://github.com/AustralianBioCommons/aws-gen3-pipeline.git && cd aws-gen3-pipeline
+cp docs/example-config.json config/<project>.<env>.json   # config/*.json is gitignored here
+$EDITOR config/<project>.<env>.json     # field-by-field: CONFIG_GUIDE.md
+npm ci && npm test
+npx cdk bootstrap aws://<account-id>/<region> --profile <your-profile>   # once per account+region
+npx cdk diff --all -c env=<env> --profile <your-profile>
+npx cdk deploy --all -c env=<env> --profile <your-profile>
+./scripts/integration_test.sh --profile <your-profile> --env <env>
+```
+
+Then **verify the published names**:
+
+```bash
+aws ssm get-parameters-by-path --path /<project>/<env> --recursive \
+  --query 'Parameters[].Name' --output text --profile <your-profile>
+```
+
+### Useful commands
+
+- `npm run build` — compile TypeScript to JS
+- `npm run test` — run the jest unit tests (naming convention + SSM drift guard)
+- `npx cdk list -c env=<env>` — list the stacks for an environment
+- `npx cdk synth -c env=<env>` — emit the synthesized CloudFormation template
+- `npx cdk diff --all -c env=<env> --profile <your-profile>` — compare deployed stacks with current state
+- `npx cdk deploy --all -c env=<env> --profile <your-profile>` — deploy the whole pipeline for an environment
+
+All of these accept `-c project=<projectId>` too (only needed when `config/`
+holds several projects for the same env — unnecessary in a wrapper, which
+holds one project's configs).
 
 ## 7. Troubleshooting
 

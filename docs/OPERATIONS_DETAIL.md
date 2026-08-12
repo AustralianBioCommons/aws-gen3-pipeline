@@ -12,6 +12,9 @@ marked **GAP**.
 
 ## 1. Names, SSM, and why nothing is hardcoded
 
+*(Reader-level introduction:
+[CONCEPTS.md section 4](CONCEPTS.md#4-configuration-inputs-outputs-and-what-ssm-achieves).)*
+
 There are exactly two kinds of value: **INPUTS** a human chooses (in
 `config/<project>.<env>.json`) and **OUTPUTS** the CDK derives (`lib/names.ts`)
 and publishes to SSM under `/{project}/{env}/…`.
@@ -56,6 +59,9 @@ resolves against SSM `/{project}/{base}/…`, and a compound env name has no tre
 ---
 
 ## 3. CI builds vs release builds
+
+*(Reader-level introduction:
+[CONCEPTS.md section 6](CONCEPTS.md#6-ci-builds-vs-release-builds--why-they-never-touch).)*
 
 Both pipelines run `dbt build`. Historically both wrote to the **same** Glue
 databases, which caused two distinct problems:
@@ -106,6 +112,9 @@ grant the permission in the same change.
 
 ## 4. Validation
 
+*(Reader-level introduction:
+[CONCEPTS.md section 7](CONCEPTS.md#7-the-validation-gate--what-green-means).)*
+
 The validator derives its work from the silver database — it lists tables
 matching `silver_<study>_*` to discover studies, dumps each to JSON, and
 validates against the Gen3 schema.
@@ -134,6 +143,9 @@ Two things learned building it, worth remembering when editing:
 ---
 
 ## 5. Releases, pinned snapshots, and reproducibility
+
+*(Reader-level introduction:
+[CONCEPTS.md section 8](CONCEPTS.md#8-releases-tags-and-reproducibility).)*
 
 A data release records, per model, the Iceberg **snapshot ID** it was built
 from. The export then reads *that* snapshot — which is what makes a release
