@@ -528,22 +528,43 @@ By default, this project triggers builds via **AWS CodePipeline** when code is p
 
 ## 6. Deployment
 
-To deploy changes to AWS:
+> Adopters deploy through a private **deployment wrapper**, not from a
+> checkout of this repo — see [QUICKSTART.md](QUICKSTART.md) and
+> [WRAPPER_GUIDE.md](WRAPPER_GUIDE.md). Deploying straight from a checkout,
+> as below, is for contributors and evaluation.
 
-1.  **Authenticate**: Ensure your terminal session has valid AWS credentials (`aws sts get-caller-identity`).
-2.  **Diff**: Check what will change.
-    ```bash
-    npx cdk diff -c env=test --profile <your-profile>
-    ```
-3.  **Deploy**:
-    ```bash
-    npx cdk deploy --all -c env=test --profile <your-profile>
-    ```
-4.  **Verify the published names**:
-    ```bash
-    aws ssm get-parameters-by-path --path /myproject/test --recursive \
-      --query 'Parameters[].Name' --output text --profile <your-profile>
-    ```
+### Deploy from a checkout
+
+```bash
+git clone https://github.com/AustralianBioCommons/aws-gen3-pipeline.git && cd aws-gen3-pipeline
+cp docs/example-config.json config/<project>.<env>.json   # config/*.json is gitignored here
+$EDITOR config/<project>.<env>.json     # field-by-field: CONFIG_GUIDE.md
+npm ci && npm test
+npx cdk bootstrap aws://<account-id>/<region> --profile <your-profile>   # once per account+region
+npx cdk diff --all -c env=<env> --profile <your-profile>
+npx cdk deploy --all -c env=<env> --profile <your-profile>
+./scripts/integration_test.sh --profile <your-profile> --env <env>
+```
+
+Then **verify the published names**:
+
+```bash
+aws ssm get-parameters-by-path --path /<project>/<env> --recursive \
+  --query 'Parameters[].Name' --output text --profile <your-profile>
+```
+
+### Useful commands
+
+- `npm run build` — compile TypeScript to JS
+- `npm run test` — run the jest unit tests (naming convention + SSM drift guard)
+- `npx cdk list -c env=<env>` — list the stacks for an environment
+- `npx cdk synth -c env=<env>` — emit the synthesized CloudFormation template
+- `npx cdk diff --all -c env=<env> --profile <your-profile>` — compare deployed stacks with current state
+- `npx cdk deploy --all -c env=<env> --profile <your-profile>` — deploy the whole pipeline for an environment
+
+All of these accept `-c project=<projectId>` too (only needed when `config/`
+holds several projects for the same env — unnecessary in a wrapper, which
+holds one project's configs).
 
 ## 7. Troubleshooting
 
