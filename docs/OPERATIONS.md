@@ -97,14 +97,32 @@ dbt build
 ## 4. Validate
 
 Validation reads **silver**, dumps each study to JSON, and checks it against the
-Gen3 schema. Run the validation Step Function, then:
+Gen3 schema. It runs against one of two warehouses, and there is a separate
+Step Function for each:
+
+| Machine | Reads | Writes | Driven by |
+|---|---|---|---|
+| `<project>-<env>-validation-ci` | `ci_<…>_silver_db` | `ci_full_validation_results` | the CI pipeline, on every push |
+| `<project>-<env>-validation` | `<…>_silver_db` | `full_validation_results` | you, on demand after a release |
+
+CI validates what CI built. The dbt `ci` target writes only `ci_*` databases, so
+the commit-triggered machine grades that build; the real machine grades the
+warehouse a release promoted. The two never share a results table — the gate
+picks the greatest `validation_id`, so a shared table would let a CI run
+silently grade a release check.
+
+Either way:
 
 - **Green** = schema-clean data, safe to release.
-- **Red** = the gate found real failures. Query `full_validation_results` for
-  the latest `validation_id`, fix the source data, re-run until green.
+- **Red** = the gate found real failures. Query the run's results table for the
+  latest `validation_id`, fix the source data, re-run until green.
 
 The gate deliberately fails the job rather than warning, so a green run means
-something. Known-noise patterns and synthetic studies are excluded.
+something. Known-noise patterns and studies matching `%synthetic%` are excluded
+— note that a study named `synth1` does **not** match, and is gated normally.
+
+The usual loop is: push → CI validates `ci_*` → read `ci_full_validation_results`
+→ fix the models → push again. Cut the release once that is green.
 
 ---
 
@@ -198,7 +216,8 @@ nothing else should be in progress.
 |---|---|
 | Names look wrong / commands hit the wrong resource | `g3dt config show`, then `g3dt config diff` |
 | A dbt build wrote to the wrong database | [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 3 |
-| Validation fails and you cannot tell why | `full_validation_results`, latest `validation_id` |
+| Validation fails and you cannot tell why | the run's results table (`ci_full_validation_results` from CI, `full_validation_results` from step 9), latest `validation_id` |
+| `TABLE_NOT_FOUND: ... full_validation_results does not exist` | Nothing has been validated into that table yet — it is created by the first Iceberg write, never by CDK. Check the previous Glue job's log for `NOTHING TO VALIDATE`, and confirm the silver DB for that target actually has tables |
 | A release exported stale data | [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 5 |
 | A Glue job runs old code after a fix | The toolkit-pin coupling — [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 5 |
 | `502` on `/wts/external_oidc/` | Credential/commons mismatch, not a broken link — [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 2 |

@@ -72,6 +72,7 @@ export function ssmParameters(config: InputConfig, names: DerivedNames): Record<
 
         // step functions
         'stepfunctions/validation': names.stepFunctions.validation,
+        'stepfunctions/validationCi': names.stepFunctions.validationCi,
         'stepfunctions/writeReleaseJsons': names.stepFunctions.writeReleaseJsons,
 
         // ec2 (instanceId is published by the EC2 stack — see EC2_INSTANCE_ID_KEY)

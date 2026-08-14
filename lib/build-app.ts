@@ -76,6 +76,7 @@ export function buildApp(app: cdk.App, config: InputConfig): BuiltApp {
         },
         stepFunctionNames: {
             validation: stepFunctions.validationStateMachineName,
+            validationCi: stepFunctions.validationCiStateMachineName,
             writeReleaseJsons: stepFunctions.writeReleaseJsonsStateMachineName,
         },
     });

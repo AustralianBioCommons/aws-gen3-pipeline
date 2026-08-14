@@ -481,17 +481,32 @@ Re-pushing the same tag is safe — the writer is idempotent and logs
 gate that separates built from releasable
 ([CONCEPTS.md section 7](CONCEPTS.md#7-the-validation-gate--what-green-means)).
 
+Most of the time you do **not** run this by hand. Every push to the dbt repo
+builds into the `ci_*` databases and then validates them automatically, via the
+`<project>-<env>-validation-ci` state machine, writing
+`<project>_<env>_validation_db.ci_full_validation_results`. That is the loop you
+iterate in: push, read the results, fix the models, push again.
+
+This step is the other machine — the one that validates the **real** warehouse
+after a release has promoted data into it:
+
 ```bash
 aws stepfunctions start-execution \
   --state-machine-arn arn:aws:states:<region>:<account-id>:stateMachine:<project>-<env>-validation \
   --profile <your-profile>
 ```
 
-The validation state machine dumps every silver table to JSON, validates each
-record against the dictionary from step 6, writes results to
+Both machines run the same two Glue jobs, differing only in the `--DB_TARGET`
+they pass. Each writes its own results table, because the gate grades the
+greatest `validation_id` — a shared table would let a CI run stand in for a
+release check.
+
+The state machine dumps every silver table to JSON, validates each record
+against the dictionary from step 6, writes results to
 `<project>_<env>_validation_db.full_validation_results`, and **fails the
 execution if real errors remain** — a green run *means* schema-clean data,
-not just that the machinery ran. On a red run:
+not just that the machinery ran. On a red run (swap in
+`ci_full_validation_results` when reading a CI run):
 
 ```sql
 SELECT node, validation_error, count(*) FROM <project>_<env>_validation_db.full_validation_results
@@ -499,6 +514,11 @@ WHERE validation_id = (SELECT max(validation_id) FROM <project>_<env>_validation
   AND validation_error IS NOT NULL
 GROUP BY 1, 2 ORDER BY 3 DESC
 ```
+
+If the job logs `NOTHING TO VALIDATE` and succeeds without gating, the target's
+silver DB has no tables — expected on a fresh environment before its first
+build. Neither results table exists until something is actually validated: they
+are created by the first Iceberg write, never by CDK.
 
 Fix the data (or models), re-release, re-run. Operator loop detail:
 [OPERATIONS.md](OPERATIONS.md).

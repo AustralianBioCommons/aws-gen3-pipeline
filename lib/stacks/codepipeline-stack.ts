@@ -24,6 +24,7 @@ export interface CodePipelineStackProps extends cdk.StackProps {
     };
     stepFunctionNames: {
         validation: string;
+        validationCi: string;
         writeReleaseJsons: string;
     };
 }
@@ -59,7 +60,7 @@ export class CodePipelineStack extends cdk.Stack {
                 'states:DescribeStateMachine',
             ],
             resources: [
-                `arn:aws:states:${this.region}:${this.account}:stateMachine:${stepFunctionNames.validation}`,
+                `arn:aws:states:${this.region}:${this.account}:stateMachine:${stepFunctionNames.validationCi}`,
                 `arn:aws:states:${this.region}:${this.account}:stateMachine:${stepFunctionNames.writeReleaseJsons}`,
             ],
         }));
@@ -74,10 +75,16 @@ export class CodePipelineStack extends cdk.Stack {
         const sourceOutput = new codepipeline.Artifact('SourceArtifact');
         const buildOutput = new codepipeline.Artifact('BuildArtifact');
 
-        const validationStateMachine = stepfunctions.StateMachine.fromStateMachineArn(
+        // The CI machine, NOT the real-warehouse one. The build that precedes
+        // this stage runs dbt with G3DT_DBT_TARGET=ci, so everything it
+        // produces lands in ci_* databases; validating the real warehouse here
+        // would grade data this commit never touched (and, on a fresh
+        // environment, nothing at all). Runbook step 9 drives the real machine
+        // on demand.
+        const validationCiStateMachine = stepfunctions.StateMachine.fromStateMachineArn(
             this,
-            'ValidationStateMachine',
-            `arn:aws:states:${this.region}:${this.account}:stateMachine:${stepFunctionNames.validation}`,
+            'ValidationCiStateMachine',
+            `arn:aws:states:${this.region}:${this.account}:stateMachine:${stepFunctionNames.validationCi}`,
         );
 
         const writeReleaseStateMachine = stepfunctions.StateMachine.fromStateMachineArn(
@@ -132,7 +139,7 @@ export class CodePipelineStack extends cdk.Stack {
             actions: [
                 new codepipelineActions.StepFunctionInvokeAction({
                     actionName: 'invoke-glue-validation-jobs',
-                    stateMachine: validationStateMachine,
+                    stateMachine: validationCiStateMachine,
                     stateMachineInput: codepipelineActions.StateMachineInput.literal({}),
                     runOrder: 1,
                 }),

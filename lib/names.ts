@@ -43,7 +43,7 @@ export interface DerivedNames {
     roles: { glueEtl: string };
     codebuild: { dbtTestAndRun: string; dbtReleaseBuilder: string };
     codepipeline: { dbtTestAndRun: string; writeReleaseInfo: string };
-    stepFunctions: { validation: string; writeReleaseJsons: string };
+    stepFunctions: { validation: string; validationCi: string; writeReleaseJsons: string };
     glueJobs: GlueJobDerived[];
     ec2: { logGroup: string; logBucket: string; logPrefix: string };
 }
@@ -146,6 +146,11 @@ export function deriveNames(cfg: InputConfig): DerivedNames {
         },
         stepFunctions: {
             validation: `${prefix}-validation`,
+            // CI isolation: same two Glue jobs, run with --DB_TARGET=ci so they
+            // read the ci_* silver DB the dbt `ci` target builds and write
+            // ci_full_validation_results. The commit-triggered pipeline invokes
+            // this one; `validation` above stays for the real warehouse.
+            validationCi: `${prefix}-validation-ci`,
             writeReleaseJsons: `${prefix}-write-release-jsons`,
         },
         glueJobs: deriveGlueJobs(cfg, prefix, script),

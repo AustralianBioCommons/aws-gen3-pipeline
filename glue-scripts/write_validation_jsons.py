@@ -13,10 +13,18 @@ The legacy script hard-coded every name — here the job receives
 resolves everything else from the env's SSM tree via the g3dt resolver (the
 toolkit is installed by --additional-python-modules).
 
-Reads:  every silver* table in the env's silver Glue DB (dbt temp/lookup
+--DB_TARGET selects which warehouse to read. `real` (the default) reads the
+real silver DB — runbook step 9, run on demand after a release. `ci` reads the
+ci_-prefixed silver DB that the dbt `ci` target builds, so the commit-triggered
+CI pipeline validates exactly what it just built instead of the real warehouse
+it deliberately never writes.
+
+Reads:  every silver* table in the target's silver Glue DB (dbt temp/lookup
         tables filtered out; study_id derived from the table name).
-Writes: s3://<validation-bucket>/validation/study_id=.../validation_id=...
-        /table_name=.../snapshot_id=.../<table>.json
+Writes: s3://<validation-bucket>/<prefix>/study_id=.../validation_id=...
+        /table_name=.../snapshot_id=.../<table>.json — where <prefix> is
+        `validation` for the real warehouse and `ci_validation` for CI, so the
+        two runs' artifacts never interleave.
         (key layout fixed in g3dt.utils.athena_utils.write_validation_json_to_s3;
         the legacy pipeline wrote to the silver bucket — the greenfield uses
         the dedicated validation bucket).
@@ -52,12 +60,37 @@ logger.addHandler(handler)
 
 DEFAULT_MAX_WORKERS = 8
 
+# CI isolation. The dbt `ci` target prefixes every database with ci_
+# (gen3-dbt-template macros/generate_schema_name.sql), so a CI validation run
+# has to read those databases and keep its artifacts away from the real
+# warehouse's. Keep this table byte-for-byte in step with the same block in
+# silver_json_gen3_validator.py: Glue python-shell jobs each get exactly one
+# file, so there is nowhere shared to put it.
+DB_TARGETS = {
+    "real": {
+        "silver_key": "glue/db/silver",
+        "key_prefix": "validation",
+        "results_table": "full_validation_results",
+    },
+    "ci": {
+        "silver_key": "glue/db/ciSilver",
+        "key_prefix": "ci_validation",
+        "results_table": "ci_full_validation_results",
+    },
+}
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--PROJECT_ID", required=True)
     parser.add_argument("--ENV", required=True)
     parser.add_argument("--REGION", required=True)
+    parser.add_argument(
+        "--DB_TARGET",
+        default="real",
+        choices=sorted(DB_TARGETS),
+        help="Which warehouse to validate: 'real' (default) or 'ci'.",
+    )
     parser.add_argument(
         "--EXCLUDE_TABLES",
         default="",
@@ -85,12 +118,13 @@ def should_export_table(table_name, exclude_tables=()):
     return True
 
 
-def process_table(config, validation_bucket, validation_id, silver_db, table):
+def process_table(config, validation_bucket, validation_id, silver_db, table,
+                  key_prefix):
     """Export one silver table's latest snapshot. Thread-safe unit of work.
 
     Creates its own boto3 session/client and AthenaValidationWriter, runs two
     Athena queries ($snapshots + the pinned SELECT), and writes the JSON to
-    S3 reusing the writer's snapshot_id for the key.
+    S3 under `key_prefix` reusing the writer's snapshot_id for the key.
     """
     table_name = table["table_name"]
     study_id = table["study_id"]
@@ -110,6 +144,7 @@ def process_table(config, validation_bucket, validation_id, silver_db, table):
         snapshot_id=writer.snapshot_id,
         json_data=validation_json,
         s3_client=s3_client,
+        key_prefix=key_prefix,
     )
     logger.info("Wrote validation JSON for table '%s' (study '%s').", table_name, study_id)
     return table_name
@@ -118,12 +153,16 @@ def process_table(config, validation_bucket, validation_id, silver_db, table):
 def main() -> None:
     args = parse_args()
     rc = resolver.resolve(args.PROJECT_ID, args.ENV, region=args.REGION)
-    silver_db = rc.get("glue/db/silver")
+    target = DB_TARGETS[args.DB_TARGET]
+    silver_db = rc.get(target["silver_key"])
+    key_prefix = target["key_prefix"]
     validation_bucket = rc.get("buckets/validation")
     max_workers = int(os.environ.get("VALIDATION_EXPORT_MAX_WORKERS", str(DEFAULT_MAX_WORKERS)))
     logger.info(
-        "Resolved from SSM /%s/%s: silver db=%s, validation bucket=%s, workgroup=%s",
-        args.PROJECT_ID, args.ENV, silver_db, validation_bucket, rc.athena_workgroup,
+        "Resolved from SSM /%s/%s (DB_TARGET=%s): silver db=%s, "
+        "validation bucket=%s, key prefix=%s, workgroup=%s",
+        args.PROJECT_ID, args.ENV, args.DB_TARGET, silver_db,
+        validation_bucket, key_prefix, rc.athena_workgroup,
     )
 
     config = AthenaConfig(
@@ -147,13 +186,25 @@ def main() -> None:
         for t in table_list
         if should_export_table(t, exclude_tables)
     ]
-    logger.info("Found %d valid table(s) to process.", len(tables))
+    if not tables:
+        # Not an error — a fresh environment legitimately has nothing here yet.
+        # Say so loudly anyway: the next job in the Step Function has nothing to
+        # validate, and without this the cause is invisible until it surfaces
+        # there as a much less obvious failure.
+        logger.warning(
+            "No silver tables to export from '%s' — writing 0 JSON files. "
+            "The validation job after this one will have nothing to validate. "
+            "On a fresh environment, build the dbt project first.",
+            silver_db,
+        )
+    else:
+        logger.info("Found %d valid table(s) to process.", len(tables))
 
     failures = {}
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_to_table = {
             pool.submit(process_table, config, validation_bucket,
-                        validation_id, silver_db, t): t
+                        validation_id, silver_db, t, key_prefix): t
             for t in tables
         }
         for future in as_completed(future_to_table):

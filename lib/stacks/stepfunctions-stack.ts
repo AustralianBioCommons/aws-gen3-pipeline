@@ -17,6 +17,7 @@ export interface StepFunctionsStackProps extends cdk.StackProps {
 
 export class StepFunctionsStack extends cdk.Stack {
     public readonly validationStateMachineName: string;
+    public readonly validationCiStateMachineName: string;
     public readonly writeReleaseJsonsStateMachineName: string;
 
     constructor(scope: Construct, id: string, props: StepFunctionsStackProps) {
@@ -39,13 +40,28 @@ export class StepFunctionsStack extends cdk.Stack {
             removalPolicy: cdk.RemovalPolicy.RETAIN,
         });
 
+        const validationCiLogGroup = new logs.LogGroup(this, 'ValidationCiLogs', {
+            logGroupName: `/aws/vendedlogs/states/${projectId}-${environment}-validation-ci`,
+            removalPolicy: cdk.RemovalPolicy.RETAIN,
+        });
+
         const writeReleaseLogGroup = new logs.LogGroup(this, 'WriteReleaseLogs', {
             logGroupName: `/aws/vendedlogs/states/${projectId}-${environment}-write-release-jsons`,
             removalPolicy: cdk.RemovalPolicy.RETAIN,
         });
 
-        const validationDefinition = {
-            Comment: 'Orchestrate Glue jobs sequentially',
+        // Both validation machines run the SAME two Glue jobs; only --DB_TARGET
+        // differs. 'ci' points them at the ci_* databases the dbt `ci` target
+        // builds (so the commit-triggered pipeline grades what it just built);
+        // 'real' points them at the real warehouse for runbook step 9. The two
+        // targets write different results tables — see the DB_TARGETS block in
+        // glue-scripts/silver_json_gen3_validator.py.
+        //
+        // Passing it as a job Argument rather than as Step Functions input
+        // keeps each machine unambiguous: a hand-started execution with no
+        // input still validates the target its name says it does.
+        const validationDefinition = (dbTarget: 'real' | 'ci') => ({
+            Comment: `Orchestrate validation Glue jobs sequentially (${dbTarget} databases)`,
             StartAt: 'DumpAthenaToJson',
             States: {
                 DumpAthenaToJson: {
@@ -53,6 +69,7 @@ export class StepFunctionsStack extends cdk.Stack {
                     Resource: 'arn:aws:states:::glue:startJobRun.sync',
                     Parameters: {
                         JobName: glueJob('writeValidationJsons'),
+                        Arguments: { '--DB_TARGET': dbTarget },
                     },
                     Next: 'ValidateJson',
                 },
@@ -61,11 +78,14 @@ export class StepFunctionsStack extends cdk.Stack {
                     Resource: 'arn:aws:states:::glue:startJobRun.sync',
                     Parameters: {
                         JobName: glueJob('silverJsonGen3Validator'),
+                        // Must match DumpAthenaToJson: the validator reads the
+                        // JSONs that job wrote, under a target-scoped prefix.
+                        Arguments: { '--DB_TARGET': dbTarget },
                     },
                     End: true,
                 },
             },
-        };
+        });
 
         const writeReleaseDefinition = {
             Comment: 'Trigger Glue job to write release JSONs',
@@ -86,13 +106,32 @@ export class StepFunctionsStack extends cdk.Stack {
             stateMachineName: names.stepFunctions.validation,
             roleArn: role.roleArn,
             stateMachineType: 'STANDARD',
-            definitionString: JSON.stringify(validationDefinition),
+            definitionString: JSON.stringify(validationDefinition('real')),
             loggingConfiguration: {
                 level: 'ERROR',
                 includeExecutionData: true,
                 destinations: [
                     {
                         cloudWatchLogsLogGroup: { logGroupArn: validationLogGroup.logGroupArn },
+                    },
+                ],
+            },
+            tracingConfiguration: {
+                enabled: true,
+            },
+        });
+
+        const validationCiSm = new sfn.CfnStateMachine(this, 'ValidationCiStateMachine', {
+            stateMachineName: names.stepFunctions.validationCi,
+            roleArn: role.roleArn,
+            stateMachineType: 'STANDARD',
+            definitionString: JSON.stringify(validationDefinition('ci')),
+            loggingConfiguration: {
+                level: 'ERROR',
+                includeExecutionData: true,
+                destinations: [
+                    {
+                        cloudWatchLogsLogGroup: { logGroupArn: validationCiLogGroup.logGroupArn },
                     },
                 ],
             },
@@ -128,6 +167,8 @@ export class StepFunctionsStack extends cdk.Stack {
 
         this.validationStateMachineName =
             validationSm.stateMachineName ?? names.stepFunctions.validation;
+        this.validationCiStateMachineName =
+            validationCiSm.stateMachineName ?? names.stepFunctions.validationCi;
         this.writeReleaseJsonsStateMachineName =
             writeReleaseSm.stateMachineName ?? names.stepFunctions.writeReleaseJsons;
     }
