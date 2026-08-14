@@ -151,7 +151,7 @@ deploys the infrastructure, and a dbt repo that defines the warehouse.
 > ```bash
 > aws ssm get-parameters-by-path --path /<project>/<env> --recursive \
 >   --profile <your-profile> | jq '.Parameters | length'
-> # 39 -> deployed and publishing. Skip to step 5 (configure the CLI).
+> # 41 -> deployed and publishing. Skip to step 5 (configure the CLI).
 > # 0  -> not deployed; continue below.
 > ```
 
@@ -303,8 +303,11 @@ suite stops the deploy, deliberately.
 ```bash
 aws ssm get-parameters-by-path --path /<project>/<env> --recursive \
   --profile <your-profile> | jq '.Parameters | length'
-# -> 39
+# -> 41 on a stock pipeline (more if you added parameters in lib/ssm-keys.ts)
 ```
+
+This is a smoke check, not the contract — the integration suite below probes
+for each expected key by name and tells you which one is missing.
 
 Then prove the environment *works*, not just that it was created — a green
 deploy cannot see whether the job box bootstrapped, Athena queries run, or

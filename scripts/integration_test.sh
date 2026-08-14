@@ -15,9 +15,20 @@
 # a small result object to the athena-results bucket) and one SSM Run Command
 # on the job box (`g3dt version`, marker file, outbound HTTPS check).
 #
-# Usage:
+# Usage (from a checkout of this repo, or from a wrapper via its .checkout/):
 #   ./scripts/integration_test.sh --profile <your-profile> [--env test] [--project <id>] [--read-only]
+#   ./.checkout/scripts/integration_test.sh --profile <your-profile> [--env test] ...
 set -uo pipefail
+
+# Anchor to this repo's root so every relative path below (package.json, lib/,
+# config/) resolves here and not in the caller's CWD. The documented wrapper
+# invocation runs this from the wrapper root, which has a config/ of its own
+# but no package.json and no compiled lib/ — without this cd, `npm run build`
+# and the deriveNames() require() both fail, $EXPECT comes back empty, and
+# every check that dereferences it reports a bogus FAIL. deploy.sh overlays the
+# wrapper's config into .checkout/config/, so the config read here is the same
+# one the CDK deployed with either way.
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || { echo "cannot locate repo root" >&2; exit 1; }
 
 PROFILE=""; ENV_NAME="test"; PROJECT=""; READ_ONLY="false"
 
@@ -51,9 +62,11 @@ done
 EXPECT="$(node -e "
 const fs = require('fs');
 const { deriveNames } = require('./lib/names.js');
+const { expectedTreeKeys } = require('./lib/ssm-keys.js');
 const cfg = JSON.parse(fs.readFileSync('${CONFIG_FILE}', 'utf-8'));
 const n = deriveNames(cfg);
 console.log(JSON.stringify({
+  ssmKeys: expectedTreeKeys(cfg, n),
   prefix: cfg.projectId + '-' + cfg.environment,
   base: '/' + cfg.projectId + '/' + cfg.environment,
   region: cfg.region,
@@ -85,10 +98,24 @@ echo "Integration tests for ${PREFIX} (config: ${CONFIG_FILE}, profile: ${PROFIL
 hdr "SSM tree ${BASE}"
 PARAMS="$("${AWS[@]}" ssm get-parameters-by-path --path "$BASE" --recursive 2>/dev/null)"
 COUNT="$(echo "$PARAMS" | jq '.Parameters | length')"
-# 41 = 40 from the SSM stack (32 OUTPUT names incl. the ci_* isolation DBs
-# + 8 app/* facts) + ec2/instanceId published by the EC2 stack. Keep in step
-# with EXPECTED_PARAM_COUNT in test/ssm-publishing.test.ts.
-if [[ "$COUNT" == "41" ]]; then ok "41 parameters published"; else bad "expected 41 parameters, found ${COUNT}"; fi
+# Presence, not an exact total: the expected keys come from lib/ssm-keys.ts —
+# the same map the SSM stack publishes from — so a fork that adds a parameter
+# is checked for it rather than failed by it. Naming the missing keys also
+# beats "expected 41, found 40" when something really is absent. Extra keys
+# beyond the map are fine here; test/ssm-publishing.test.ts is what forbids
+# strays in this repo's own stacks.
+MISSING=()
+HAVE="$(echo "$PARAMS" | jq -r '.Parameters[].Name')"
+while read -r rel; do
+  [[ -n "$rel" ]] || continue
+  grep -qxF "$BASE/$rel" <<<"$HAVE" || MISSING+=("$rel")
+done < <(echo "$EXPECT" | jq -r '.ssmKeys[]')
+EXPECTED_N="$(echo "$EXPECT" | jq '.ssmKeys | length')"
+if (( ${#MISSING[@]} == 0 )); then
+  ok "all ${EXPECTED_N} expected parameters present (${COUNT} in the tree)"
+else
+  bad "${#MISSING[@]} of ${EXPECTED_N} expected parameters missing: ${MISSING[*]}"
+fi
 
 pval() { echo "$PARAMS" | jq -r --arg n "$BASE/$1" '.Parameters[] | select(.Name==$n) | .Value'; }
 [[ "$(pval buckets/metadata)" == "$(val .metadataBucket)" ]] \
