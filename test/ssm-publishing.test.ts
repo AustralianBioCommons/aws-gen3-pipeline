@@ -3,14 +3,15 @@
 // The drift guard: synths the WHOLE app via buildApp() and asserts that every
 // physical name the resource stacks create appears as the Value of some SSM
 // parameter. Add a bucket / DB / role / project / pipeline / state machine
-// without a matching put() in ssm-parameters-stack.ts and this goes red.
-// The count test catches the reverse (a published name whose resource is gone).
+// without a matching entry in lib/ssm-keys.ts and this goes red. The
+// key-parity test catches the reverse (a published name whose resource is gone).
 import * as fs from 'fs';
 import * as path from 'path';
 import * as cdk from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
 import { InputConfig } from '../lib/config';
 import { buildApp } from '../lib/build-app';
+import { ssmParameters } from '../lib/ssm-keys';
 
 // Placeholder fixture, never config/*.json: wrapper checkouts overlay their
 // own config/ and `npm test` must stay green inside them. The drift guard
@@ -24,10 +25,14 @@ const { names, stacks } = buildApp(app, config);
 const ssmTemplate = Template.fromStack(stacks.ssm);
 const base = `/${config.projectId}/${config.environment}`;
 
-// 30 OUTPUT names + 8 app/* facts in the SSM stack; ec2/instanceId is
-// published by the EC2 stack (runtime token of a replaceable instance —
-// a cross-stack reference would block replacement). Tree total: 41.
-const EXPECTED_PARAM_COUNT = 40;
+// The keys this config should publish, read from the same map the stack
+// publishes from. Derived, never hardcoded: a fork that adds a parameter to
+// lib/ssm-keys.ts stays green here without also editing a total by hand.
+// ec2/instanceId is absent on purpose — the EC2 stack publishes it (runtime
+// token of a replaceable instance; a cross-stack reference would block
+// replacement), and the test below asserts exactly that split.
+const EXPECTED_PARAM_NAMES = Object.keys(ssmParameters(config, names))
+    .map((key) => `${base}/${key}`);
 
 /** Every string Value published to SSM (the instanceId token is an object, skipped). */
 const publishedValues = new Set<string>(
@@ -93,8 +98,23 @@ describe('SSM publishing — every named resource is exported (drift guard)', ()
         }
     });
 
-    it('publishes exactly the expected number of parameters (catches stray/duplicate)', () => {
-        ssmTemplate.resourceCountIs('AWS::SSM::Parameter', EXPECTED_PARAM_COUNT);
+    it('publishes exactly the keys in the shared map — none missing, none stray', () => {
+        // Input:    the fixture config synthed through buildApp().
+        // Expected: the set of parameter Names in the SSM stack is exactly the
+        //           set of keys in lib/ssm-keys.ts, prefixed with /project/env.
+        //
+        // This is the parity check that makes the map trustworthy as a
+        // contract. A key added to the map but never published (or a put()
+        // reintroduced outside the map) fails here, which matters because
+        // scripts/integration_test.sh probes a LIVE tree against this same map
+        // — a map that lies would turn every deployment red for no reason.
+        const published = Object.values(ssmTemplate.findResources('AWS::SSM::Parameter'))
+            .map((r) => r.Properties?.Name as string);
+        expect([...published].sort()).toEqual([...EXPECTED_PARAM_NAMES].sort());
+
+        // Set equality above would hide a duplicate Name published under two
+        // logical IDs; the raw resource count would not.
+        ssmTemplate.resourceCountIs('AWS::SSM::Parameter', EXPECTED_PARAM_NAMES.length);
     });
 
     it('pins the medallion SSM key paths — the cross-repo contract', () => {
