@@ -159,6 +159,78 @@ from config — built-in and custom alike. Declaring a custom job is consenting
 to the pipeline's state machines being able to run it; there is no extra IAM
 step, and no way to opt a job out short of not declaring it.
 
+### Replacing a built-in script
+
+Dropping a file into the wrapper's `glue-scripts/` under a **built-in
+filename** replaces that built-in entirely. This is supported: the built-in
+scripts encode one project's answers to questions every project answers
+differently, and tailoring them is expected. Do it deliberately, though —
+there is no prompt, no diff, and no warning.
+
+The common reason is **validation gate policy** — deciding which findings
+should block a release. The gate ignores a fixed set of error patterns
+(`VALIDATION_GATE_IGNORED_ERRORS` in the toolkit: null-typed fields,
+additional-properties, the Gen3 `programs` root requirement) and treats
+everything else as blocking. To ignore more, extend the tuple in your copy of
+`silver_json_gen3_validator.py` before the gate runs:
+
+```python
+from g3dt.validate import validate as g3dt_validate
+
+# <project>-local gate policy: these are export artefacts here, not defects.
+g3dt_validate.VALIDATION_GATE_IGNORED_ERRORS = (
+    *g3dt_validate.VALIDATION_GATE_IGNORED_ERRORS,
+    "%your pattern%",
+)
+logger.info("Gate ignore patterns: %s", g3dt_validate.VALIDATION_GATE_IGNORED_ERRORS)
+```
+
+For anything more structured than "ignore more error strings" — gating `ERROR`
+but not `FAIL`, exempting particular nodes, a different aggregation — drop
+`run_validation_gate` and run your own Athena query instead. Keep the
+contract the job already relies on: **no rows means pass, any row means
+fail.** Three things the built-in query does that a replacement must also do,
+each of which fails silently if forgotten:
+
+- scope to `validation_id = (SELECT MAX(validation_id) …)`, or you grade all
+  history and never go green once anything has ever failed;
+- exclude `validation_result = 'PASS'`, or every clean run fails on its own
+  marker;
+- read the results table for the **current** `--DB_TARGET`, or a CI run grades
+  the real warehouse.
+
+**Log the effective policy on every run.** A gate is a decision about what is
+safe to release, editable by anyone with repo access. When a release is later
+questioned, the run's own log should explain what it did and did not enforce.
+
+#### The cost, which is real
+
+The overlay is whole-file, and **nothing detects drift**. `deploy.sh` copies
+over the top; `integration_test.sh` checks the toolkit pin, not script
+contents. Once you replace a built-in, upstream fixes to that script stop
+reaching you, silently, forever.
+
+So replace a built-in only when the behaviour is genuinely project-specific.
+If you are working around a bug or a missing knob, that belongs upstream as a
+PR — you get the fix *and* everyone else does. When you do fork one:
+
+- note the upstream tag you forked from, in a comment at the top of your copy;
+- on every upstream bump, review how far your copy has drifted before you
+  deploy.
+
+`.checkout/` is a git clone of upstream and the overlay copies your files over
+its working tree, so git reports the drift for you:
+
+```bash
+./deploy.sh --profile <your-profile> --env <env> --diff   # clones the new ref, overlays
+git -C .checkout diff -- glue-scripts/                    # your copy vs upstream's
+```
+
+Clean output means you have replaced nothing and are fully up to date. Any
+hunk is a deliberate divergence you now own — read it against the upstream
+release notes and decide whether it is still needed, or whether upstream has
+since solved the same problem better.
+
 ## Upgrading
 
 Environment by environment, lowest first:
@@ -199,6 +271,8 @@ stateful resources like bucket *contents* are untouched either way.)
 |---|---|
 | Account IDs, ARNs, AMIs, Gen3 facts, `customJobs` declarations | Wrapper `config/` |
 | Deployment-specific Glue job scripts | Wrapper `glue-scripts/` |
+| Project-specific validation gate policy — which findings block a release | Wrapper `glue-scripts/silver_json_gen3_validator.py` ([above](#replacing-a-built-in-script)) |
+| A built-in script replaced to work around a bug or a missing knob | **Upstream, as a PR** — a fork stops receiving fixes, silently |
 | A new config field, stack change, or naming fix anyone could use | **Upstream, as a PR** to this repo |
 | A fix to `deploy.sh` / the wrapper scaffold | **Upstream**, in [`../wrapper-template/`](../wrapper-template/) — every future wrapper gets it |
 

@@ -143,6 +143,12 @@ The gate deliberately fails the job rather than warning, so a green run means
 something. Known-noise patterns and studies matching `%synthetic%` are excluded
 — note that a study named `synth1` does **not** match, and is gated normally.
 
+Which findings block a release is a project decision, and the gate's defaults
+will not suit everyone. To change them, overlay your own
+`silver_json_gen3_validator.py` — see
+[WRAPPER_GUIDE.md](WRAPPER_GUIDE.md#replacing-a-built-in-script), which covers
+the three invariants a replacement gate query must preserve.
+
 The usual loop is: push → CI validates `ci_*` → read `ci_full_validation_results`
 → fix the models → push again. Cut the release once that is green.
 
