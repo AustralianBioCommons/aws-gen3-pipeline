@@ -8,11 +8,20 @@ reworked to the shape proven there on 2026-07-31 (requires toolkit >= 2.2.0):
   grows with run history) instead of one of each per study.
 * The per-study Iceberg writes are batched into a single INSERT at the end.
 * After the results land, a **validation gate** queries the latest
-  validation_id for REAL failures (known-noise error patterns and synthetic
-  studies excluded) and FAILS this job — and therefore the validation Step
-  Function — when any remain. A green validation run means schema-clean
-  data; the operator loop is: gate fails -> inspect the results table
-  -> fix the source data -> re-run until green.
+  validation_id for REAL failures (known-noise error patterns, PASS markers
+  and synthetic studies excluded) and FAILS this job — and therefore the
+  validation Step Function — when any remain. A green validation run means
+  schema-clean data; the operator loop is: gate fails -> inspect the results
+  table -> fix the source data -> re-run until green.
+
+**Every run writes at least one row**, and the write always happens before
+this job raises. That is what makes the operator loop usable: the results
+table, not this log, is where you find out what to fix. Rows come in three
+kinds — FAIL (a value violated the schema), ERROR (the record could not be
+checked at all, e.g. its `type` names a node the dictionary does not define),
+and a single PASS marker when a study is clean. The marker is not cosmetic:
+the gate grades the greatest validation_id, so a clean run that wrote nothing
+would leave the previous failing run as the latest and could never go green.
 
 Configuration is name-free: every name resolves from the env's SSM tree
 (--PROJECT_ID/--ENV/--REGION injected by the CDK) and queries run in the
@@ -45,7 +54,9 @@ import pandas as pd
 from g3dt import resolver
 from g3dt.utils.athena_utils import AthenaConfig, AthenaQuery, write_iceberg_to_db
 from g3dt.validate.validate import (
+    VALIDATION_RESULT_COLUMNS,
     create_metadata_table,
+    get_latest_validation_for_study,
     load_and_resolve_schema,
     run_validation_gate,
     validate_pipeline,
@@ -115,6 +126,41 @@ def derive_study_ids(athena_query: AthenaQuery, silver_db: str) -> list:
     return studies
 
 
+def error_frame(metadata_table, study_id: str, schema_version, exc: Exception):
+    """One-row results frame recording that a study could not be validated.
+
+    Shaped exactly like the frames validate_pipeline returns, so it concatenates
+    into the same Iceberg write and the gate counts it as a failure (only PASS
+    markers are excluded).
+
+    The validation_id is recovered from the metadata listing rather than from
+    validate_pipeline, which computes it internally and never returns when it
+    raises. If even that lookup fails there is no run to attribute the error to,
+    so fall back to a null id — the row still lands, and the log still has the
+    detail.
+    """
+    try:
+        _, validation_id = get_latest_validation_for_study(metadata_table, study_id)
+    except Exception:  # noqa: BLE001 - best effort; the error row matters more
+        logger.warning("Could not recover a validation_id for study '%s'.", study_id)
+        validation_id = None
+
+    row = {
+        "validation_id": validation_id,
+        "index": None,
+        "node": None,
+        "study_id": study_id,
+        "validation_result": "ERROR",
+        "invalid_key": None,
+        "schema_path": None,
+        "validator": None,
+        "validator_value": None,
+        "validation_error": f"{type(exc).__name__}: {exc}",
+        "schema_version": schema_version,
+    }
+    return pd.DataFrame([row], columns=VALIDATION_RESULT_COLUMNS).astype({"index": "Int64"})
+
+
 def main() -> None:
     args = parse_args()
     rc = resolver.resolve(args.PROJECT_ID, args.ENV, region=args.REGION)
@@ -167,6 +213,10 @@ def main() -> None:
     metadata_table = pd.DataFrame(create_metadata_table(validation_root))
     logger.info("Metadata table created from S3 (%s rows).", len(metadata_table))
 
+    # Resolved once here, not per study: error_frame() needs it on the path
+    # where validate_pipeline raised before it could work this out itself.
+    schema_version = schema_resolver.get_schema_version(schema=schema)
+
     results_frames = []
     failures = {}
     for study_id in study_id_list:
@@ -190,6 +240,15 @@ def main() -> None:
         except Exception as e:
             logger.error("Validation FAILED for study '%s': %s", study_id, e)
             failures[study_id] = e
+            # Record the failure in the results table rather than only in this
+            # log. Data-level problems (an unknown node type, a bad value) come
+            # back as rows from validate_pipeline, so reaching here means
+            # something infrastructural — a download that failed, a schema that
+            # would not resolve. The operator still reads the results table
+            # first, and it must not look like the study was simply skipped.
+            results_frames.append(
+                error_frame(metadata_table, study_id, schema_version, e)
+            )
 
     if results_frames:
         combined = pd.concat(results_frames, ignore_index=True)

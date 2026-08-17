@@ -43,7 +43,7 @@ exists) ([RUNBOOK step 2](RUNBOOK.md#2-aws-prerequisites-the-config-will-referen
 
 **4. Fill in the config** `config/<project>.<env>.json` — the fields that
 matter: `accountId`, `region`, `repo.fullName` (your dbt repo) +
-`repo.codeStarConnectionArn`, `ec2.ami`, `toolkitVersion` (`3.2.0`), and the
+`repo.codeStarConnectionArn`, `ec2.ami`, `toolkitVersion` (`3.3.0`), and the
 `gen3.*` facts ([RUNBOOK step 3](RUNBOOK.md#3-fill-in-the-config), field
 reference [CONFIG_GUIDE.md](CONFIG_GUIDE.md)). Commit and push.
 

@@ -20,7 +20,7 @@ release notes):
 | Component | This runbook assumes |
 |---|---|
 | aws-gen3-pipeline | ≥ v2.2.0 |
-| gen3-dataops-toolkit | ≥ 3.2.0 |
+| gen3-dataops-toolkit | ≥ 3.3.0 |
 | gen3-validator | ≥ 2.2.0 (resolved automatically as a toolkit dependency) |
 | gen3-dbt-template | silver-generators revision or later |
 
@@ -243,7 +243,7 @@ Edit `config/<project>.<env>.json` in the wrapper (seeded from
 
 - `repo.fullName` / `branch` — **your dbt repo**, not the template.
 - `repo.codeStarConnectionArn` — from step 2.1.
-- `toolkitVersion` — the `gen3-dataops-toolkit` PyPI pin (currently `3.2.0`).
+- `toolkitVersion` — the `gen3-dataops-toolkit` PyPI pin (currently `3.3.0`).
   This single value pins the toolkit for the Glue jobs, the EC2 box, and the
   CodeBuild builds.
 - `gen3.schemaS3Uri` — `bucket/key` form, **no `s3://`**. For a first
@@ -337,7 +337,7 @@ toolkit needs AWS credentials and this one small marker file, nothing else.
 
 ```bash
 pipx install gen3-dataops-toolkit
-g3dt version                       # >= 3.2.0 (see the pairing table above)
+g3dt version                       # >= 3.3.0 (see the pairing table above)
 
 mkdir -p ~/.g3dt && cat > ~/.g3dt/g3dt.yaml <<EOF
 project: <project>

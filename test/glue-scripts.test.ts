@@ -97,4 +97,29 @@ describe('glue-scripts — the Python CDK ships to S3', () => {
         expect(gate).toBeGreaterThan(-1);
         expect(guard).toBeLessThan(gate);
     });
+
+    it('the validator writes results before it raises on a failed study', () => {
+        // The operator loop is "read the results table, fix, push again", so a
+        // study that blows up must still leave a row behind. It previously did
+        // not: the Iceberg write was guarded by `if results_frames:`, and a
+        // study that raised appended nothing, so a run where every study failed
+        // wrote no table at all and the operator got a Glue log to read instead.
+        //
+        // Two things are pinned. The except branch records an error_frame, and
+        // the write precedes the raise — swapping those would restore the old
+        // behaviour while still passing an "is error_frame called" check.
+        const source = read('silver_json_gen3_validator.py');
+        const code = source
+            .split('\n')
+            .filter((line) => !line.trimStart().startsWith('#'))
+            .join('\n');
+
+        expect(code).toContain('results_frames.append(\n                error_frame(');
+
+        const write = code.indexOf('write_iceberg_to_db(');
+        const raise = code.indexOf('raise RuntimeError(');
+        expect(write).toBeGreaterThan(-1);
+        expect(raise).toBeGreaterThan(-1);
+        expect(write).toBeLessThan(raise);
+    });
 });

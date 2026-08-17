@@ -96,7 +96,7 @@ Copy this, then fill every `<-` using Section 3:
     // "keyName": "..."               // <- OMIT unless you need break-glass SSH
   },
 
-  "toolkitVersion": "3.2.0",          // <- Section 3.5 PyPI pin for the g3dt toolkit
+  "toolkitVersion": "3.3.0",          // <- Section 3.5 PyPI pin for the g3dt toolkit
 
   "gen3": {                           //  Section 3.6 facts about this env's Gen3 commons
     "dictionaryVersion": "v1.0.0",
@@ -297,7 +297,7 @@ for whatever your account returns.
 | Connection | `aws codeconnections list-connections …` | `<org>-github`, AVAILABLE, `…connection/00000000-0000-0000-0000-000000000000` |
 | AMI | `aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64 …` | `ami-00000000000000000` (yours is the real current id) |
 | Key pair | skip — SSM-only access | (omitted) |
-| Toolkit | latest **published** toolkit release on PyPI (Section 3.5) | `3.2.0` |
+| Toolkit | latest **published** toolkit release on PyPI (Section 3.5) | `3.3.0` |
 | Gen3 facts | `g3dt config show --env <env>` on a sibling env, or the commons' devops engineer | see below |
 
 ```json
@@ -327,7 +327,7 @@ for whatever your account returns.
     "ami": "ami-00000000000000000"
   },
 
-  "toolkitVersion": "3.2.0",
+  "toolkitVersion": "3.3.0",
 
   "gen3": {
     "dictionaryVersion": "v1.0.0",

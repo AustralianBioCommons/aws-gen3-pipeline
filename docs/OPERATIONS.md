@@ -73,6 +73,13 @@ For a brand-new environment with no real data yet, the dbt template's silver
 models generate deterministic synthetic data (`dbt build` alone — bronze stays
 empty), so you can exercise the whole pipeline immediately.
 
+> **The synth models target the stock Gen3 dictionary.** They emit nodes named
+> `case` and `experiment`. If your dictionary renames or omits those — omix3,
+> for instance, uses `subject` and has no `experiment` — validation will report
+> `node '<name>' not found in resolved schema` until you rename the models to
+> match. That is a real finding, not a broken environment: it is the same check
+> that protects your production data.
+
 ---
 
 ## 3. Build silver and gold
@@ -116,6 +123,21 @@ Either way:
 - **Green** = schema-clean data, safe to release.
 - **Red** = the gate found real failures. Query the run's results table for the
   latest `validation_id`, fix the source data, re-run until green.
+
+Every run writes at least one row, and the write happens **before** the job
+fails — so the results table, not the Glue log, is where you look first. Rows
+come in three kinds:
+
+| `validation_result` | Meaning | Gated? |
+|---|---|---|
+| `FAIL` | A value violated the node's schema — a bad enum, a missing required field | Yes |
+| `ERROR` | The record could not be checked at all. Usually its `type` names a node your dictionary does not define | Yes — nothing was verified, which is worse than a known violation |
+| `PASS` | Marker written when a study is clean. One row per study, no findings attached | No |
+
+The PASS marker is load-bearing, not cosmetic. The gate grades the greatest
+`validation_id`, so a clean run that wrote nothing would leave the previous
+*failing* run as the latest and the gate could never go green however many
+times you fixed the data.
 
 The gate deliberately fails the job rather than warning, so a green run means
 something. Known-noise patterns and studies matching `%synthetic%` are excluded
@@ -218,6 +240,7 @@ nothing else should be in progress.
 | A dbt build wrote to the wrong database | [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 3 |
 | Validation fails and you cannot tell why | the run's results table (`ci_full_validation_results` from CI, `full_validation_results` from step 9), latest `validation_id` |
 | `TABLE_NOT_FOUND: ... full_validation_results does not exist` | Nothing has been validated into that table yet — it is created by the first Iceberg write, never by CDK. Check the previous Glue job's log for `NOTHING TO VALIDATE`, and confirm the silver DB for that target actually has tables |
+| `node '<name>' not found in resolved schema` (an `ERROR` row) | Your models emit a node your dictionary does not define. Rename the model, or add the node to the dictionary. Common straight after scaffolding from the dbt template — see the caveat in section 2 |
 | A release exported stale data | [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 5 |
 | A Glue job runs old code after a fix | The toolkit-pin coupling — [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 5 |
 | `502` on `/wts/external_oidc/` | Credential/commons mismatch, not a broken link — [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 2 |
