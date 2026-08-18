@@ -85,7 +85,7 @@ export class NetworkStack extends cdk.Stack {
         // into the Gen3 VPC and route to it from our private subnets — the
         // pipeline-side half of what the VPN does for a laptop. The Gen3-side
         // half (return route + ALB SG allow) is a devops step; see
-        // docs/VPC_NETWORKING.md §5a.
+        // docs/VPC_NETWORKING.md section 5a.
         if (gen3Access.mode === 'peered') {
             if (!gen3Access.peerVpcId || !gen3Access.peerVpcCidr) {
                 throw new Error(

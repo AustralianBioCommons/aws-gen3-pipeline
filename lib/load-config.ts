@@ -88,6 +88,16 @@ function validate(parsed: unknown): InputConfig {
     if (missing.length) {
         throw new Error(`Config is missing required INPUT field(s): ${missing.join(', ')}`);
     }
+    // Every gen3.* fact is mirrored to SSM for the toolkit; a missing one
+    // would publish "undefined" and only surface deep inside a job run.
+    const missingGen3 = (['dictionaryVersion', 'dictionaryBaseUrl', 'dictionaryPath',
+        'awsSecretName', 'schemaS3Uri', 'domain', 'appName', 'namespace',
+        'clusterName', 'schemaRepo'] as const)
+        .filter((k) => !cfg.gen3[k]);
+    if (missingGen3.length) {
+        throw new Error(
+            `Config is missing required gen3.* field(s): ${missingGen3.join(', ')}`);
+    }
     validateCustomJobs(cfg);
     return cfg;
 }

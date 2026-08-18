@@ -11,7 +11,7 @@
  * environment: test/prod commons are usually internet-facing ("public" — the
  * NAT path just works), while staging commons sit behind an internal ALB that
  * a devops engineer normally exposes via VPN ("peered" — the CDK creates a
- * VPC peering into the Gen3 VPC instead; see docs/VPC_NETWORKING.md §5a for
+ * VPC peering into the Gen3 VPC instead; see docs/VPC_NETWORKING.md section 5a for
  * the Gen3-side steps that complete the link).
  */
 export interface Gen3ApiAccessConfig {
@@ -65,6 +65,19 @@ export interface Ec2Config {
  */
 export interface Gen3Config {
     dictionaryVersion: string;
+    /**
+     * Base URL the data dictionary is downloaded from, e.g.
+     * "https://raw.githubusercontent.com". With dictionaryPath it pins where
+     * the data model comes from — the model underpins every toolkit data
+     * operation, so its source is a required, explicit input. The toolkit
+     * composes: {dictionaryBaseUrl}/{schemaRepo}/refs/tags/{dictionaryVersion}/{dictionaryPath}
+     */
+    dictionaryBaseUrl: string;
+    /**
+     * Path to the dictionary JSON within schemaRepo at the dictionaryVersion
+     * tag, e.g. "dictionary/prod_dict/myproject_schema.json".
+     */
+    dictionaryPath: string;
     awsSecretName: string;        // Secrets Manager secret NAME (never the value)
     schemaS3Uri: string;
     domain: string;

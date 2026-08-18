@@ -83,6 +83,8 @@ export function ssmParameters(config: InputConfig, names: DerivedNames): Record<
         // app facts (INPUTS mirrored for the CLI — snake_case per the toolkit's
         // resolver contract; secret NAMES only, values stay in Secrets Manager)
         'app/dictionary_version': config.gen3.dictionaryVersion,
+        'app/dictionary_base_url': config.gen3.dictionaryBaseUrl,
+        'app/dictionary_path': config.gen3.dictionaryPath,
         'app/aws_secret_name': config.gen3.awsSecretName,
         'app/schema_s3_uri': config.gen3.schemaS3Uri,
         'app/domain': config.gen3.domain,

@@ -99,7 +99,9 @@ Copy this, then fill every `<-` using Section 3:
   "toolkitVersion": "3.3.0",          // <- Section 3.5 PyPI pin for the g3dt toolkit
 
   "gen3": {                           //  Section 3.6 facts about this env's Gen3 commons
-    "dictionaryVersion": "v1.0.0",
+    "dictionaryVersion": "v1.0.0",    // <- git tag of the data dictionary in schemaRepo
+    "dictionaryBaseUrl": "https://raw.githubusercontent.com",          // <- where the dictionary downloads from
+    "dictionaryPath": "dictionary/prod_dict/myproject_schema.json",    // <- path to the dictionary JSON within schemaRepo
     "awsSecretName": "myproject_staging_gen3_api_key.json",  // <- convention: <project>_<env>_gen3_api_key.json
     "schemaS3Uri": "my-schema-bucket/schema.json",
     "domain": "commons.example.org",
@@ -129,8 +131,8 @@ Checklist (details for every row in Section 3):
 | 12 | `ec2.keyName` | optional | string | Break-glass SSH key pair — omit by default |
 | 13 | `ec2.alertEmail` | optional | email | Notify this address when the idle box auto-stops |
 | 14 | `toolkitVersion` | ✅ | semver | Pinned toolkit version for EC2 + Glue jobs |
-| 15–22 | `gen3.*` (8 fields) | ✅ | strings | Facts about this env's Gen3 commons (see Section 3.6) |
-| 23 | `customJobs` | optional | array | Deployment-specific Glue jobs — see [Custom Glue jobs](#custom-glue-jobs) |
+| 15–24 | `gen3.*` (10 fields) | ✅ | strings | Facts about this env's Gen3 commons, including where the data dictionary is downloaded from (see Section 3.6) |
+| 25 | `customJobs` | optional | array | Deployment-specific Glue jobs — see [Custom Glue jobs](#custom-glue-jobs) |
 
 ---
 
@@ -271,6 +273,8 @@ a live sibling environment: run `g3dt config show --env <env>` (the values are m
 | Field | Consumed by | How to find it | Gotchas |
 |---|---|---|---|
 | `dictionaryVersion` | `g3dt dict` ops — version of the data dictionary | `g3dt config show --env <env>` on a sibling env | — |
+| `dictionaryBaseUrl` | `g3dt dict pull` / `dict deploy` — with `schemaRepo`, `dictionaryVersion` and `dictionaryPath` it composes the dictionary download URL: `{dictionaryBaseUrl}/{schemaRepo}/refs/tags/{dictionaryVersion}/{dictionaryPath}` | Almost always `https://raw.githubusercontent.com` | The data model underpins every toolkit data operation, so its source is a **required, explicit** input — older toolkits fell back to a hardcoded legacy path when this was absent from SSM, producing 404s on other projects' repos |
+| `dictionaryPath` | `g3dt dict pull` / `dict deploy` — path to the dictionary JSON within `schemaRepo` at the `dictionaryVersion` tag | Browse the schema repo at the tag (e.g. `dictionary/prod_dict/myproject_schema.json`) | Must exist at that exact path **in the tagged revision** — a rename in the schema repo means updating this field and redeploying |
 | `awsSecretName` | `metadata upload` / `indexd register` auth — the Secrets Manager secret holding the Gen3 API key. **This value also generates IAM**: the job box's role is granted `GetSecretValue` on exactly this secret and nothing else | Recommended name: `<project>_<env>_gen3_api_key.json` (e.g. `myproject_test_gen3_api_key.json`). Check what exists: `aws secretsmanager list-secrets --profile <p> --query 'SecretList[].Name'` | This is the secret **name**, never its value. The secret must exist in the same account with the value entered manually. Renaming the secret means updating this field **and redeploying** (the IAM grant follows the config) |
 | `schemaS3Uri` | `g3dt dict upload` — where the schema JSON lands; the validation Glue job downloads its Gen3 schema from exactly this location | sibling env / devops (e.g. `my-schema-bucket/schema.json`) | `bucket/key` form, no `s3://` prefix. Usually a Gen3-deployment bucket. **Default test dictionary**: with no commons of your own yet, copy the official public Gen3 dictionary into the pipeline's metadata bucket and point here — `curl -s https://s3.amazonaws.com/dictionary-artifacts/datadictionary/develop/schema.json \| aws s3 cp - s3://<metadata-bucket>/schema/gen3_datadictionary_develop.json` then set `<metadata-bucket>/schema/gen3_datadictionary_develop.json` (the Glue role can already read that bucket; the template's synthetic data validates against this dictionary) |
 | `domain` | `g3dt k8s` / `dict deploy` — the **ArgoCD/CD endpoint** for the commons | sibling env / devops | ⚠ Despite the name, this is *not* the commons REST API — the API URL comes from the API-key JWT. `cd.*` hostnames are typically internal (VPN) |
@@ -331,6 +335,8 @@ for whatever your account returns.
 
   "gen3": {
     "dictionaryVersion": "v1.0.0",
+    "dictionaryBaseUrl": "https://raw.githubusercontent.com",
+    "dictionaryPath": "dictionary/prod_dict/myproject_schema.json",
     "awsSecretName": "myproject_staging_gen3_api_key.json",
     "schemaS3Uri": "my-schema-bucket/schema.json",
     "domain": "commons.example.org",
