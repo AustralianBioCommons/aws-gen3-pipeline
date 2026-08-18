@@ -67,6 +67,7 @@ const cfg = JSON.parse(fs.readFileSync('${CONFIG_FILE}', 'utf-8'));
 const n = deriveNames(cfg);
 console.log(JSON.stringify({
   ssmKeys: expectedTreeKeys(cfg, n),
+  appFactCount: expectedTreeKeys(cfg, n).filter(k => k.startsWith('app/')).length,
   prefix: cfg.projectId + '-' + cfg.environment,
   base: '/' + cfg.projectId + '/' + cfg.environment,
   region: cfg.region,
@@ -140,7 +141,10 @@ done
 INSTANCE_ID="$(pval ec2/instanceId)"
 if [[ "$INSTANCE_ID" =~ ^i-[0-9a-f]+$ ]]; then ok "ec2/instanceId is a real id (${INSTANCE_ID})"; else bad "ec2/instanceId invalid: '${INSTANCE_ID}'"; fi
 APP_COUNT="$(echo "$PARAMS" | jq --arg p "$BASE/app/" '[.Parameters[] | select(.Name | startswith($p))] | length')"
-[[ "$APP_COUNT" == "8" ]] && ok "all 8 app/* facts published" || bad "expected 8 app/* params, found ${APP_COUNT}"
+# Derived from the config-aware key map, never hardcoded: optional blocks
+# (e.g. llm) legitimately change how many app/* facts a deployment publishes.
+EXPECTED_APP="$(echo "$EXPECT" | jq -r '.appFactCount')"
+[[ "$APP_COUNT" == "$EXPECTED_APP" ]] && ok "all ${EXPECTED_APP} app/* facts published" || bad "expected ${EXPECTED_APP} app/* params, found ${APP_COUNT}"
 
 # ---- 2. EC2 job box ---------------------------------------------------------
 hdr "EC2 job box ${INSTANCE_ID}"

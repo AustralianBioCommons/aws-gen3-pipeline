@@ -110,6 +110,11 @@ Copy this, then fill every `<-` using Section 3:
     "clusterName": "Gen3-Eks-pipeline-staging",
     "schemaRepo": "my-org/my-schema-repo"
   }
+
+  // "llm": {                         //  Section 3.7 — OMIT unless you use
+  //   "provider": "anthropic",       //  LLM-realistic synthetic data via
+  //   "model": "claude-opus-5"       //  gen3-metadata-simulator (g3dt synth --llm)
+  // }
 }
 ```
 
@@ -133,6 +138,8 @@ Checklist (details for every row in Section 3):
 | 14 | `toolkitVersion` | ✅ | semver | Pinned toolkit version for EC2 + Glue jobs |
 | 15–24 | `gen3.*` (10 fields) | ✅ | strings | Facts about this env's Gen3 commons, including where the data dictionary is downloaded from (see Section 3.6) |
 | 25 | `customJobs` | optional | array | Deployment-specific Glue jobs — see [Custom Glue jobs](#custom-glue-jobs) |
+| 26 | `llm.provider` | optional | `anthropic` \| `openai` | LLM vendor for synthetic-data generation (Section 3.7) |
+| 27 | `llm.model` | optional | string | Model id for synthetic-data generation — required if the `llm` block is present (Section 3.7) |
 
 ---
 
@@ -282,6 +289,36 @@ a live sibling environment: run `g3dt config show --env <env>` (the values are m
 | `namespace` | k8s restart ops — the commons' k8s namespace | sibling env / devops (e.g. `myproject`) | — |
 | `clusterName` | k8s ops — the EKS cluster running the commons | `aws eks list-clusters --profile <p>` | The cluster is Gen3 infrastructure — the pipeline never manages it |
 | `schemaRepo` | `g3dt dict pull` — GitHub repo of the schema JSON | team convention (e.g. `my-org/my-schema-repo`) | — |
+
+### 3.7 `llm` — synthetic-data model (optional)
+
+This block configures the LLM used for **synthetic data generation** via
+[gen3-metadata-simulator](https://github.com/AustralianBioCommons/gen3-metadata-simulator)
+(`g3dt synth generate --llm` and `g3dt synth deploy`). Omit it entirely if you
+only use the keyless `random` provider — nothing else in the pipeline reads
+it. When present, both fields are mirrored to SSM as `app/llm_provider` and
+`app/llm_model`, so every operator's `g3dt` resolves the same model without
+any local configuration.
+
+| Field | Consumed by | Values | Gotchas |
+|---|---|---|---|
+| `provider` | `g3dt synth` → gen3-metadata-simulator | `anthropic` or `openai` | — |
+| `model` | `g3dt synth` → gen3-metadata-simulator | Model id (e.g. `claude-opus-5`) | Required whenever the block is present — a missing model fails at config load |
+
+Resolution precedence in `g3dt`: **CLI flags → SSM → toolkit default** — an
+operator can try a different model for one run with
+`g3dt synth generate <study> --llm --llm-model <id>` without a redeploy, and
+without one, everyone gets the deployment's values.
+
+**The API key never goes in this config or SSM.** Only its *path* is
+configured, locally, once per operator:
+
+```bash
+g3dt config set llm_api_key_file ~/.g3dt/anthropic_api_key
+```
+
+(or per-run via `--llm-api-key-file`; the vendor env var
+`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` also works as a fallback).
 
 ---
 

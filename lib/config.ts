@@ -88,6 +88,22 @@ export interface Gen3Config {
 }
 
 /**
+ * OPTIONAL. The LLM used for synthetic-data generation via
+ * gen3-metadata-simulator
+ * (https://github.com/AustralianBioCommons/gen3-metadata-simulator).
+ * Mirrored to SSM as app/llm_provider + app/llm_model so `g3dt synth`
+ * resolves them per environment — operators keep only the API key (a local
+ * file path, never in config or SSM). Omit the block entirely if only the
+ * keyless "random" synthetic-data provider is used.
+ */
+export interface LlmConfig {
+    /** LLM vendor. */
+    provider: 'anthropic' | 'openai';
+    /** Model id, e.g. "claude-opus-5". */
+    model: string;
+}
+
+/**
  * A deployment-supplied Glue python-shell job, declared alongside the built-in
  * jobs without editing any stack code. Still INPUTS only: the deployed job
  * name and S3 scriptLocation are OUTPUTs derived in lib/names.ts from `key`
@@ -128,6 +144,9 @@ export interface InputConfig {
     /** Pinned PyPI version of the toolkit, installed on the EC2 box and in Glue jobs. */
     toolkitVersion: string;
     gen3: Gen3Config;
+
+    /** Synthetic-data LLM (see LlmConfig) — omit for keyless random data only. */
+    llm?: LlmConfig;
 
     /** Deployment-specific Glue jobs, in addition to the built-in ones. */
     customJobs?: CustomGlueJobConfig[];

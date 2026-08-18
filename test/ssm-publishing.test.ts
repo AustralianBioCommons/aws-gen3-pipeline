@@ -91,11 +91,40 @@ describe('SSM publishing — every named resource is exported (drift guard)', ()
 
     it('exports the app/* facts the CLI resolves at runtime', () => {
         for (const leaf of [
-            'app/dictionary_version', 'app/aws_secret_name', 'app/schema_s3_uri',
+            'app/dictionary_version', 'app/dictionary_base_url', 'app/dictionary_path',
+            'app/aws_secret_name', 'app/schema_s3_uri',
             'app/domain', 'app/app_name', 'app/namespace', 'app/cluster_name', 'app/schema_repo',
         ]) {
             ssmTemplate.hasResourceProperties('AWS::SSM::Parameter', { Name: `${base}/${leaf}` });
         }
+    });
+
+    it('publishes app/llm_* only when the optional llm block is configured', () => {
+        // Input:    the default fixture (no llm block) vs a copy with one.
+        // Expected: without the block the llm keys are entirely absent (never
+        //           published blank — the publisher takes the map verbatim,
+        //           and the toolkit treats an absent key as "use my default");
+        //           with the block, both facts are published for `g3dt synth`.
+        for (const leaf of ['app/llm_provider', 'app/llm_model']) {
+            expect(Object.values(ssmTemplate.findResources('AWS::SSM::Parameter'))
+                .filter((p) => p.Properties?.Name === `${base}/${leaf}`)).toHaveLength(0);
+        }
+
+        const llmApp = new cdk.App();
+        const llmConfig: InputConfig = {
+            ...config,
+            environment: 'synth',
+            llm: { provider: 'anthropic', model: 'claude-opus-5' },
+        };
+        const withLlm = Template.fromStack(buildApp(llmApp, llmConfig).stacks.ssm);
+        withLlm.hasResourceProperties('AWS::SSM::Parameter', {
+            Name: `/${config.projectId}/synth/app/llm_provider`,
+            Value: 'anthropic',
+        });
+        withLlm.hasResourceProperties('AWS::SSM::Parameter', {
+            Name: `/${config.projectId}/synth/app/llm_model`,
+            Value: 'claude-opus-5',
+        });
     });
 
     it('publishes exactly the keys in the shared map — none missing, none stray', () => {
