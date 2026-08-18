@@ -151,7 +151,7 @@ deploys the infrastructure, and a dbt repo that defines the warehouse.
 > ```bash
 > aws ssm get-parameters-by-path --path /<project>/<env> --recursive \
 >   --profile <your-profile> | jq '.Parameters | length'
-> # 41 -> deployed and publishing. Skip to step 5 (configure the CLI).
+> # 44 -> deployed and publishing (46 with the optional llm block). Skip to step 5 (configure the CLI).
 > # 0  -> not deployed; continue below.
 > ```
 
@@ -260,6 +260,13 @@ Edit `config/<project>.<env>.json` in the wrapper (seeded from
   (GitHub); `schemaS3Uri` says where the validation job reads it *in S3*
   (`g3dt dict deploy` bridges the two).
 - `gen3.awsSecretName` — the secret *name* from step 2.2 (never a value).
+- `llm` *(optional block)* — provider and model for LLM-realistic synthetic
+  data via
+  [gen3-metadata-simulator](https://github.com/AustralianBioCommons/gen3-metadata-simulator);
+  every operator's `g3dt synth --llm` then resolves them from SSM, keeping
+  only the API key path local
+  ([CONFIG_GUIDE.md section 3.7](CONFIG_GUIDE.md#37-llm--synthetic-data-model-optional)).
+  Omit for keyless random synthetic data.
 
 Commit and push the wrapper.
 
@@ -313,7 +320,7 @@ suite stops the deploy, deliberately.
 ```bash
 aws ssm get-parameters-by-path --path /<project>/<env> --recursive \
   --profile <your-profile> | jq '.Parameters | length'
-# -> 41 on a stock pipeline (more if you added parameters in lib/ssm-keys.ts)
+# -> 44 on a stock pipeline (46 with the optional llm block; more if you added parameters in lib/ssm-keys.ts)
 ```
 
 This is a smoke check, not the contract — the integration suite below probes

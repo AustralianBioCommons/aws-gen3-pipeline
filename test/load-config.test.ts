@@ -109,3 +109,38 @@ describe('loadConfig — required gen3.* fields', () => {
         },
     );
 });
+
+describe('loadConfig — optional llm block validation', () => {
+    // The llm block configures synthetic-data generation via
+    // gen3-metadata-simulator and is mirrored to SSM as app/llm_provider +
+    // app/llm_model. It is optional (the keyless "random" provider needs no
+    // config), but when present a half-specified or misspelled block would
+    // publish a broken fact set — these cases pin that it is rejected at load
+    // time with the offending field named.
+    const base = JSON.parse(
+        fs.readFileSync(path.join(__dirname, 'fixtures', 'pipeline-config.json'), 'utf-8'),
+    );
+
+    const loadWithLlm = (llm: unknown) =>
+        loadConfig(new cdk.App({ context: { pipelineConfig: { ...base, llm } } }));
+
+    it('a config without an llm block loads (the block is optional)', () => {
+        const cfg = loadConfig(new cdk.App({ context: { pipelineConfig: base } }));
+        expect(cfg.llm).toBeUndefined();
+    });
+
+    it('a well-formed llm block loads', () => {
+        const cfg = loadWithLlm({ provider: 'anthropic', model: 'claude-opus-5' });
+        expect(cfg.llm).toEqual({ provider: 'anthropic', model: 'claude-opus-5' });
+    });
+
+    it('an unknown provider is rejected with the valid options named', () => {
+        expect(() => loadWithLlm({ provider: 'gemini', model: 'some-model' }))
+            .toThrow(/llm\.provider must be one of anthropic \| openai/);
+    });
+
+    it('a block without a model is rejected', () => {
+        expect(() => loadWithLlm({ provider: 'anthropic' }))
+            .toThrow(/llm\.model is required/);
+    });
+});

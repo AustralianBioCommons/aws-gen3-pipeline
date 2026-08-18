@@ -1,6 +1,6 @@
 {
   "name": "aws-gen3-pipeline",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Config-driven AWS CDK data pipeline for Gen3 data commons (Glue/Athena/dbt/Step Functions)",
   "license": "Apache-2.0",
   "repository": {

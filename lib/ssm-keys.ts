@@ -92,6 +92,15 @@ export function ssmParameters(config: InputConfig, names: DerivedNames): Record<
         'app/namespace': config.gen3.namespace,
         'app/cluster_name': config.gen3.clusterName,
         'app/schema_repo': config.gen3.schemaRepo,
+
+        // Optional synthetic-data LLM facts (gen3-metadata-simulator). Omitted
+        // from the map — not published blank — when the config has no llm
+        // block: the publisher takes the map verbatim, and the toolkit treats
+        // an absent key as "use its default".
+        ...(config.llm ? {
+            'app/llm_provider': config.llm.provider,
+            'app/llm_model': config.llm.model,
+        } : {}),
     };
 }
 

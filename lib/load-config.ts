@@ -98,8 +98,26 @@ function validate(parsed: unknown): InputConfig {
         throw new Error(
             `Config is missing required gen3.* field(s): ${missingGen3.join(', ')}`);
     }
+    validateLlm(cfg);
     validateCustomJobs(cfg);
     return cfg;
+}
+
+// The llm block is optional (synthetic data's keyless "random" provider needs
+// none of it), but a half-specified block would publish a broken fact set to
+// SSM — reject it here with the offending field named.
+function validateLlm(cfg: InputConfig): void {
+    if (cfg.llm === undefined) return;
+    const validProviders = ['anthropic', 'openai'];
+    if (!validProviders.includes(cfg.llm.provider)) {
+        throw new Error(
+            `llm.provider must be one of ${validProviders.join(' | ')}, got: `
+            + `${JSON.stringify(cfg.llm.provider)}`);
+    }
+    if (!cfg.llm.model || !String(cfg.llm.model).trim()) {
+        throw new Error('llm.model is required when the llm block is present '
+            + '(the model id used for synthetic-data generation)');
+    }
 }
 
 // Custom jobs are the one config block authored by deployment wrappers rather

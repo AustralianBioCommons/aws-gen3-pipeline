@@ -38,5 +38,11 @@
     "namespace": "myproject",
     "clusterName": "Gen3-Eks-pipeline-staging",
     "schemaRepo": "my-org/my-schema-repo"
+  },
+
+  "_llm_comment": "OPTIONAL block: the LLM used for synthetic data generation via https://github.com/AustralianBioCommons/gen3-metadata-simulator (g3dt synth --llm). Mirrored to SSM so operators share one provider/model; the API key stays local (g3dt config set llm_api_key_file <path>). Delete the block if you only use keyless random synthetic data.",
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-opus-5"
   }
 }
