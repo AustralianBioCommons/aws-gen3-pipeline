@@ -26,6 +26,8 @@
 
   "gen3": {
     "dictionaryVersion": "v1.0.0",
+    "dictionaryBaseUrl": "https://raw.githubusercontent.com",
+    "dictionaryPath": "dictionary/prod_dict/demo_schema.json",
     "awsSecretName": "demo_test_gen3_api_key.json",
     "schemaS3Uri": "my-schema-bucket/schema.json",
     "domain": "commons.example.org",

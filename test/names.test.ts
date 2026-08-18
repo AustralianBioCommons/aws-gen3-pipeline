@@ -17,7 +17,9 @@ const cfg: InputConfig = {
     ec2: { instanceType: 't3.micro', ami: 'ami-000' },
     toolkitVersion: '1.3.0',
     gen3: {
-        dictionaryVersion: 'v1', awsSecretName: 's', schemaS3Uri: 'u', domain: 'd',
+        dictionaryVersion: 'v1', dictionaryBaseUrl: 'https://raw.githubusercontent.com',
+        dictionaryPath: 'dictionary/prod_dict/demo_schema.json',
+        awsSecretName: 's', schemaS3Uri: 'u', domain: 'd',
         appName: 'a', namespace: 'n', clusterName: 'c', schemaRepo: 'r',
     },
 };

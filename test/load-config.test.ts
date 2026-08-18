@@ -79,3 +79,33 @@ describe('loadConfig — customJobs validation', () => {
         ])).toThrow(/duplicate key "myJob"/);
     });
 });
+
+describe('loadConfig — required gen3.* fields', () => {
+    // Every gen3.* fact is mirrored to SSM and read by the toolkit at
+    // runtime; dictionaryBaseUrl + dictionaryPath in particular pin where
+    // the data model is downloaded from, which underpins every toolkit data
+    // operation. A missing field must fail at config load with the field
+    // named — not publish "undefined" to SSM and surface mid-job.
+    const base = JSON.parse(
+        fs.readFileSync(path.join(__dirname, 'fixtures', 'pipeline-config.json'), 'utf-8'),
+    );
+
+    const loadWithoutGen3Key = (key: string) => {
+        const gen3 = { ...base.gen3 };
+        delete gen3[key];
+        return loadConfig(new cdk.App({ context: { pipelineConfig: { ...base, gen3 } } }));
+    };
+
+    it('the complete fixture loads', () => {
+        expect(loadConfig(new cdk.App({ context: { pipelineConfig: base } })).gen3.dictionaryPath)
+            .toBe('dictionary/prod_dict/demo_schema.json');
+    });
+
+    it.each(['dictionaryPath', 'dictionaryBaseUrl', 'schemaS3Uri'])(
+        'a config missing gen3.%s is rejected with the field named',
+        (key) => {
+            expect(() => loadWithoutGen3Key(key))
+                .toThrow(new RegExp(`gen3.* field\\(s\\): ${key}`));
+        },
+    );
+});

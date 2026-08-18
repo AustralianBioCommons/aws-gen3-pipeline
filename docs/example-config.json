@@ -27,7 +27,10 @@
   "toolkitVersion": "3.3.0",
 
   "gen3": {
+    "_dictionary_comment": "The data model source: the toolkit downloads {dictionaryBaseUrl}/{schemaRepo}/refs/tags/{dictionaryVersion}/{dictionaryPath}",
     "dictionaryVersion": "v1.0.0",
+    "dictionaryBaseUrl": "https://raw.githubusercontent.com",
+    "dictionaryPath": "dictionary/prod_dict/myproject_schema.json",
     "awsSecretName": "myproject_staging_gen3_api_key.json",
     "schemaS3Uri": "my-schema-bucket/schema.json",
     "domain": "commons.example.org",

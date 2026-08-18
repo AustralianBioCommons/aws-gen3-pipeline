@@ -19,7 +19,7 @@ release notes):
 
 | Component | This runbook assumes |
 |---|---|
-| aws-gen3-pipeline | ≥ v2.2.0 |
+| aws-gen3-pipeline | ≥ v3.0.0 |
 | gen3-dataops-toolkit | ≥ 3.3.0 |
 | gen3-validator | ≥ 2.2.0 (resolved automatically as a toolkit dependency) |
 | gen3-dbt-template | silver-generators revision or later |
@@ -246,9 +246,19 @@ Edit `config/<project>.<env>.json` in the wrapper (seeded from
 - `toolkitVersion` — the `gen3-dataops-toolkit` PyPI pin (currently `3.3.0`).
   This single value pins the toolkit for the Glue jobs, the EC2 box, and the
   CodeBuild builds.
+- `gen3.dictionaryBaseUrl` / `gen3.dictionaryPath` — together with
+  `schemaRepo` and `dictionaryVersion` these pin exactly where the data
+  dictionary downloads from
+  (`{dictionaryBaseUrl}/{schemaRepo}/refs/tags/{dictionaryVersion}/{dictionaryPath}`).
+  The data model underpins every toolkit data operation, so both are
+  **required**; `dictionaryPath` must exist at that exact path in the tagged
+  revision of your schema repo.
 - `gen3.schemaS3Uri` — `bucket/key` form, **no `s3://`**. For a first
   environment with no commons of your own, use the default test dictionary
-  (step 6).
+  (step 6). This is a *different* location from `dictionaryPath`: the
+  dictionary fields say where `g3dt dict` downloads the model *from*
+  (GitHub); `schemaS3Uri` says where the validation job reads it *in S3*
+  (`g3dt dict deploy` bridges the two).
 - `gen3.awsSecretName` — the secret *name* from step 2.2 (never a value).
 
 Commit and push the wrapper.
