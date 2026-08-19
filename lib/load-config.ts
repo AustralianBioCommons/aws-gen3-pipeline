@@ -99,8 +99,31 @@ function validate(parsed: unknown): InputConfig {
             `Config is missing required gen3.* field(s): ${missingGen3.join(', ')}`);
     }
     validateLlm(cfg);
+    validateK8s(cfg);
     validateCustomJobs(cfg);
     return cfg;
+}
+
+// The k8s block is optional (absent means the toolkit's classic Gen3 restart
+// targets), but a malformed list would publish an unusable restart sequence
+// to SSM — reject it here with the offending field named.
+function validateK8s(cfg: InputConfig): void {
+    if (cfg.k8s === undefined) return;
+    const { schemaRestartServices, etlCronjob } = cfg.k8s;
+    if (schemaRestartServices === undefined && etlCronjob === undefined) {
+        throw new Error('k8s block is present but empty — set '
+            + 'schemaRestartServices and/or etlCronjob, or remove the block');
+    }
+    if (schemaRestartServices !== undefined) {
+        if (!Array.isArray(schemaRestartServices) || schemaRestartServices.length === 0
+            || schemaRestartServices.some((s) => !s || !String(s).trim())) {
+            throw new Error('k8s.schemaRestartServices must be a non-empty array of '
+                + 'deployment names (restarted in the listed order)');
+        }
+    }
+    if (etlCronjob !== undefined && !String(etlCronjob).trim()) {
+        throw new Error('k8s.etlCronjob must be a non-empty cronjob name');
+    }
 }
 
 // The llm block is optional (synthetic data's keyless "random" provider needs

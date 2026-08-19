@@ -101,6 +101,16 @@ export function ssmParameters(config: InputConfig, names: DerivedNames): Record<
             'app/llm_provider': config.llm.provider,
             'app/llm_model': config.llm.model,
         } : {}),
+
+        // Optional k8s restart targets, same omit-when-absent contract. The
+        // list is comma-joined: the toolkit's scripts restart the deployments
+        // serially in exactly this order.
+        ...(config.k8s?.schemaRestartServices ? {
+            'app/restart_services': config.k8s.schemaRestartServices.join(','),
+        } : {}),
+        ...(config.k8s?.etlCronjob ? {
+            'app/etl_cronjob': config.k8s.etlCronjob,
+        } : {}),
     };
 }
 

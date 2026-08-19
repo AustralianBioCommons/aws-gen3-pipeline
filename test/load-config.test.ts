@@ -144,3 +144,41 @@ describe('loadConfig — optional llm block validation', () => {
             .toThrow(/llm\.model is required/);
     });
 });
+
+describe('loadConfig — optional k8s block validation', () => {
+    // The k8s block configures which microservices the toolkit's restart
+    // flows target (published to SSM as app/restart_services, restarted
+    // serially in the listed order) and the ETL cronjob name. It is optional
+    // — absent means the classic Gen3 set — but a malformed list would
+    // publish an unusable restart sequence, so it is validated at load time.
+    const base = JSON.parse(
+        fs.readFileSync(path.join(__dirname, 'fixtures', 'pipeline-config.json'), 'utf-8'),
+    );
+
+    const loadWithK8s = (k8s: unknown) =>
+        loadConfig(new cdk.App({ context: { pipelineConfig: { ...base, k8s } } }));
+
+    it('a config without a k8s block loads (the block is optional)', () => {
+        const cfg = loadConfig(new cdk.App({ context: { pipelineConfig: base } }));
+        expect(cfg.k8s).toBeUndefined();
+    });
+
+    it('a well-formed block loads, with either or both fields', () => {
+        const cfg = loadWithK8s({
+            schemaRestartServices: ['sheepdog-deployment', 'guppy-deployment'],
+        });
+        expect(cfg.k8s?.schemaRestartServices).toHaveLength(2);
+        expect(loadWithK8s({ etlCronjob: 'my-etl' }).k8s?.etlCronjob).toBe('my-etl');
+    });
+
+    it('an empty block is rejected (nothing to publish)', () => {
+        expect(() => loadWithK8s({})).toThrow(/k8s block is present but empty/);
+    });
+
+    it('an empty or blank-entry services list is rejected', () => {
+        expect(() => loadWithK8s({ schemaRestartServices: [] }))
+            .toThrow(/non-empty array of/);
+        expect(() => loadWithK8s({ schemaRestartServices: ['sheepdog-deployment', ' '] }))
+            .toThrow(/non-empty array of/);
+    });
+});

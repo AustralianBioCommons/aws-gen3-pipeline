@@ -151,7 +151,7 @@ deploys the infrastructure, and a dbt repo that defines the warehouse.
 > ```bash
 > aws ssm get-parameters-by-path --path /<project>/<env> --recursive \
 >   --profile <your-profile> | jq '.Parameters | length'
-> # 44 -> deployed and publishing (46 with the optional llm block). Skip to step 5 (configure the CLI).
+> # 44 -> deployed and publishing (more with optional blocks: llm, k8s). Skip to step 5 (configure the CLI).
 > # 0  -> not deployed; continue below.
 > ```
 
@@ -267,6 +267,11 @@ Edit `config/<project>.<env>.json` in the wrapper (seeded from
   only the API key path local
   ([CONFIG_GUIDE.md section 3.7](CONFIG_GUIDE.md#37-llm--synthetic-data-model-optional)).
   Omit for keyless random synthetic data.
+- `k8s` *(optional block)* — which deployments `g3dt`'s restart flows target
+  (serially, in the listed order) and the ETL cronjob name
+  ([CONFIG_GUIDE.md section 3.8](CONFIG_GUIDE.md#38-k8s--restart-targets-optional)).
+  Omit for the classic Gen3 set; drop a service from the list if it is
+  managed outside these flows.
 
 Commit and push the wrapper.
 
@@ -320,7 +325,7 @@ suite stops the deploy, deliberately.
 ```bash
 aws ssm get-parameters-by-path --path /<project>/<env> --recursive \
   --profile <your-profile> | jq '.Parameters | length'
-# -> 44 on a stock pipeline (46 with the optional llm block; more if you added parameters in lib/ssm-keys.ts)
+# -> 44 on a stock pipeline (more with optional blocks — llm, k8s — or parameters added in lib/ssm-keys.ts)
 ```
 
 This is a smoke check, not the contract — the integration suite below probes

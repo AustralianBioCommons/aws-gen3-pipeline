@@ -104,6 +104,23 @@ export interface LlmConfig {
 }
 
 /**
+ * OPTIONAL. Kubernetes restart targets for the toolkit's ArgoCD flows
+ * (`g3dt k8s restart-schema/restart-etl/restart-ms`, `dict deploy`,
+ * `synth deploy`). Mirrored to SSM as app/restart_services (comma-joined,
+ * restarted serially in the listed order) and app/etl_cronjob. Omit the
+ * block — or either field — to keep the classic Gen3 defaults
+ * (sheepdog, peregrine, guppy, portal / etl-cronjob). A commons that
+ * manages a service outside this flow (e.g. a manually redeployed
+ * frontend) simply leaves it out of the list.
+ */
+export interface K8sConfig {
+    /** Deployment names restarted after a schema change, in order. */
+    schemaRestartServices?: string[];
+    /** The ETL cronjob the restart-etl flow creates a run of. */
+    etlCronjob?: string;
+}
+
+/**
  * A deployment-supplied Glue python-shell job, declared alongside the built-in
  * jobs without editing any stack code. Still INPUTS only: the deployed job
  * name and S3 scriptLocation are OUTPUTs derived in lib/names.ts from `key`
@@ -147,6 +164,9 @@ export interface InputConfig {
 
     /** Synthetic-data LLM (see LlmConfig) — omit for keyless random data only. */
     llm?: LlmConfig;
+
+    /** K8s restart targets (see K8sConfig) — omit for the classic Gen3 set. */
+    k8s?: K8sConfig;
 
     /** Deployment-specific Glue jobs, in addition to the built-in ones. */
     customJobs?: CustomGlueJobConfig[];

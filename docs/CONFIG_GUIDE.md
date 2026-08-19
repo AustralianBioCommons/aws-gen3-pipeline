@@ -115,6 +115,14 @@ Copy this, then fill every `<-` using Section 3:
   //   "provider": "anthropic",       //  LLM-realistic synthetic data via
   //   "model": "claude-opus-5"       //  gen3-metadata-simulator (g3dt synth --llm)
   // }
+
+  // "k8s": {                                       //  Section 3.8 — OMIT for the
+  //   "schemaRestartServices": [                   //  classic Gen3 restart set.
+  //     "sheepdog-deployment", "peregrine-deployment",  // restarted serially,
+  //     "guppy-deployment", "portal-deployment"         // in this order
+  //   ],
+  //   "etlCronjob": "etl-cronjob"
+  // }
 }
 ```
 
@@ -140,6 +148,8 @@ Checklist (details for every row in Section 3):
 | 25 | `customJobs` | optional | array | Deployment-specific Glue jobs — see [Custom Glue jobs](#custom-glue-jobs) |
 | 26 | `llm.provider` | optional | `anthropic` \| `openai` | LLM vendor for synthetic-data generation (Section 3.7) |
 | 27 | `llm.model` | optional | string | Model id for synthetic-data generation — required if the `llm` block is present (Section 3.7) |
+| 28 | `k8s.schemaRestartServices` | optional | string[] | Deployments the toolkit restarts after a schema change, in order (Section 3.8) |
+| 29 | `k8s.etlCronjob` | optional | string | The ETL cronjob the toolkit's restart-etl flow runs (Section 3.8) |
 
 ---
 
@@ -319,6 +329,28 @@ g3dt config set llm_api_key_file ~/.g3dt/anthropic_api_key
 
 (or per-run via `--llm-api-key-file`; the vendor env var
 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` also works as a fallback).
+
+### 3.8 `k8s` — restart targets (optional)
+
+This block configures which Kubernetes deployments the toolkit's ArgoCD
+restart flows target — `g3dt k8s restart-schema` / `restart-ms` /
+`restart-etl`, `g3dt dict deploy`, and `g3dt synth deploy`. Omit it (or
+either field) for the classic Gen3 defaults. When present, the values are
+mirrored to SSM as `app/restart_services` and `app/etl_cronjob`.
+
+| Field | Consumed by | Values | Gotchas |
+|---|---|---|---|
+| `schemaRestartServices` | schema restarts (`restart-schema`, `restart-ms`, `dict deploy`, `synth deploy`) | Array of deployment names, e.g. `["sheepdog-deployment", "guppy-deployment"]` | **Restarted serially, in the listed order** — each rollout must report Healthy before the next starts. Default: `sheepdog-deployment, peregrine-deployment, guppy-deployment, portal-deployment` |
+| `etlCronjob` | `restart-etl` and the deploy flows | The cronjob name a run is created from | Default: `etl-cronjob` |
+
+Resolution precedence in `g3dt`: **CLI flags → SSM → default** — a one-off
+restart of a different set needs only
+`g3dt k8s restart-schema -e <env> --restart-services <names>`, no redeploy.
+
+Use this when a commons manages some service outside the standard flow: e.g.
+a deployment that redeploys its frontend container manually would list only
+`sheepdog-deployment, peregrine-deployment, guppy-deployment` — the restarts
+then never touch the portal.
 
 ---
 
