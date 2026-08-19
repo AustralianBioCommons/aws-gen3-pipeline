@@ -127,6 +127,37 @@ describe('SSM publishing — every named resource is exported (drift guard)', ()
         });
     });
 
+    it('publishes app/restart_services + app/etl_cronjob only when configured', () => {
+        // Input:    the default fixture (no k8s block) vs a copy with one.
+        // Expected: absent block -> neither key published (the toolkit's
+        //           scripts fall back to the classic Gen3 set); present ->
+        //           the list is comma-joined IN ORDER, because the scripts
+        //           restart the deployments serially in exactly that order.
+        for (const leaf of ['app/restart_services', 'app/etl_cronjob']) {
+            expect(Object.values(ssmTemplate.findResources('AWS::SSM::Parameter'))
+                .filter((p) => p.Properties?.Name === `${base}/${leaf}`)).toHaveLength(0);
+        }
+
+        const k8sApp = new cdk.App();
+        const k8sConfig: InputConfig = {
+            ...config,
+            environment: 'k8scfg',
+            k8s: {
+                schemaRestartServices: ['guppy-deployment', 'sheepdog-deployment'],
+                etlCronjob: 'my-etl',
+            },
+        };
+        const withK8s = Template.fromStack(buildApp(k8sApp, k8sConfig).stacks.ssm);
+        withK8s.hasResourceProperties('AWS::SSM::Parameter', {
+            Name: `/${config.projectId}/k8scfg/app/restart_services`,
+            Value: 'guppy-deployment,sheepdog-deployment',
+        });
+        withK8s.hasResourceProperties('AWS::SSM::Parameter', {
+            Name: `/${config.projectId}/k8scfg/app/etl_cronjob`,
+            Value: 'my-etl',
+        });
+    });
+
     it('publishes exactly the keys in the shared map — none missing, none stray', () => {
         // Input:    the fixture config synthed through buildApp().
         // Expected: the set of parameter Names in the SSM stack is exactly the
