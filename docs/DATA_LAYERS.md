@@ -248,8 +248,15 @@ The workbook layout is fixed by `g3mt`, so nothing is guessed:
 
 One Iceberg table per node sheet, `bronze_<study_id>_<node>`, with values
 exactly as typed — multi-value cells are not split, enums are not checked, links
-are not resolved. That is silver's job (see the contract above). Each row also
-carries provenance so it can be traced to its origin:
+are not resolved. That is silver's job (see the contract above).
+
+**Column names are Athena-sanitized**: Athena/Iceberg cannot have `.` (or most
+punctuation) in a column name — a header like `subject.submitter_id` would
+collapse into a duplicate `submitter_id` and fail the table creation — so any
+character outside `[a-z0-9_]` becomes `_` (`subject.submitter_id` →
+`subject_submitter_id`). Values are untouched, and `row_hash` is computed over
+the original workbook headers before the rename, so re-deposits keep identical
+hashes. Each row also carries provenance so it can be traced to its origin:
 
 | Column | Meaning |
 |---|---|
@@ -257,7 +264,7 @@ carries provenance so it can be traced to its origin:
 | `_src_sheet` / `_src_row` | the sheet and **spreadsheet row number** it came from |
 | `_src_study_id` | study id from the S3 path |
 | `_src_g3mt_version` / `_src_schema_file` / `_src_target_node` | what generated the workbook |
-| `_src_batch_id` | the Glue job-run id of the ingest run (a generated `local-...` id outside Glue) |
+| `_src_batch_id` | unique id per ingest run — a generated `local-<utc>-<random>` by default (python-shell jobs do not receive their Glue run id), or whatever you pass as `--JOB_RUN_ID` |
 | `_src_ingested_at` | UTC ingest timestamp, stamped **once per run** |
 | `row_hash` | stable row identity — see below |
 

@@ -59,6 +59,7 @@ import hashlib
 import io
 import logging
 import os
+import re
 import sys
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -140,7 +141,10 @@ def parse_args():
     parser.add_argument(
         "--JOB_RUN_ID",
         default=None,
-        help="Glue's job-run id, used as _src_batch_id (auto-generated if absent).",
+        help=(
+            "Optional external marker used as _src_batch_id (auto-generated "
+            "if absent — Glue python-shell jobs do not receive their run id)."
+        ),
     )
     # Glue passes --JOB_NAME and friends; ignore anything we do not declare.
     args, _unknown = parser.parse_known_args()
@@ -150,10 +154,12 @@ def parse_args():
 def batch_id_for_run(job_run_id) -> str:
     """One identifier per ingest run, stamped on every row it writes.
 
-    Glue supplies --JOB_RUN_ID (`jr_...`) so a bronze batch can be traced
-    straight back to its job run and its logs. Outside Glue (local runs,
-    tests) a unique fallback id keeps the append-only design intact. Note
-    Glue run ids are opaque, NOT time-ordered — order batches by
+    Glue python-shell jobs do NOT receive their own run id in argv (Spark
+    jobs do), so by default the batch id is a generated
+    `local-<utc>-<random>` — still unique per run, which is all the
+    append-only design needs. Pass --JOB_RUN_ID (or any marker you like) at
+    StartJobRun time if you want the batch traceable to something external.
+    Batch ids are opaque, NOT time-ordered — order batches by
     _src_ingested_at, which this job stamps once per run.
     """
     if job_run_id and str(job_run_id).strip():
@@ -253,6 +259,30 @@ def compute_row_hash(record: dict, columns: list) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def athena_safe_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Rename columns to Athena-legal names; never touches values or the hash.
+
+    Athena/Iceberg column names cannot carry dots or most punctuation: a
+    CREATE TABLE with `subject.submitter_id` collapses to a second
+    `submitter_id` and fails with "Duplicate column name". Workbook headers
+    are mapped [^a-z0-9_] -> "_" (so `subject.submitter_id` lands as
+    `subject_submitter_id`, and a duplicate-target link header's `#` becomes
+    `_`), with a numeric suffix in the vanishingly unlikely event two headers
+    collapse to the same name. `row_hash` is computed over the ORIGINAL
+    header names before this rename, so re-deposits keep identical hashes.
+    """
+    mapping, taken = {}, set()
+    for name in df.columns:
+        safe = re.sub(r"[^a-z0-9_]", "_", str(name).lower())
+        candidate, n = safe, 2
+        while candidate in taken:
+            candidate = f"{safe}_{n}"
+            n += 1
+        taken.add(candidate)
+        mapping[name] = candidate
+    return df.rename(columns=mapping)
+
+
 def frame_for_node(
     workbook, sheet_name: str, node: str, meta: dict, s3_uri: str, study_id: str,
     batch_id: str, ingested_at: str,
@@ -284,7 +314,7 @@ def frame_for_node(
         lambda r: compute_row_hash(r.to_dict(), hash_columns), axis=1
     )
     df["_src_row"] = df["_src_row"].astype(str)
-    return df
+    return athena_safe_frame(df)
 
 
 # ---------- S3 discovery ----------

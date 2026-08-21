@@ -117,6 +117,13 @@ describe('glue-scripts — the Python CDK ships to S3', () => {
         expect(code).not.toContain('merge_cols=');
         expect(code).toContain('"--JOB_RUN_ID"');
         expect(code).toContain('"_src_batch_id"');
+
+        // Athena/Iceberg cannot have dots in column names: without the
+        // sanitizing rename, `subject.submitter_id` collapses into a second
+        // `submitter_id` and every table with a link column fails to create
+        // ("Duplicate column name" — first observed live on omix3-test).
+        expect(code).toContain('def athena_safe_frame(');
+        expect(code).toContain('athena_safe_frame(df)');
     });
 
     it('the validator skips the gate when there is nothing to validate', () => {
