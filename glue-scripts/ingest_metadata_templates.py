@@ -29,11 +29,16 @@ strings the researcher typed. Multi-value cells (`list, separate with ";"`) are
 silver's job. What this job does add is provenance, so any bronze row can be
 traced back to the exact file, sheet and spreadsheet row it came from.
 
-**Re-depositing the same workbook is a no-op.** Each row carries a `row_hash`
-over its content plus its source coordinates, and the write is a MERGE on that
-hash. This is deliberate: an additive-by-default ingest silently doubles its
-corpus the first time someone re-uploads a file, which is exactly the failure
-the indexd registry hit in the legacy pipeline (46,598 rows for 23,295 files).
+**Bronze is append-only.** Every run appends its rows stamped with a
+`_src_batch_id` (the Glue job-run id) and one run-wide `_src_ingested_at`, so
+the complete history of every deposit stays queryable — nothing is ever
+rewritten in place. Each row also carries a `row_hash` over its content plus
+its source coordinates; re-depositing the same workbook reproduces the same
+hashes, and the bronze->silver promotion (see gen3-dbt-template's
+`dedupe_bronze` macro) keeps the newest copy per hash. That is what protects
+the *silver* corpus from the double-ingest failure the indexd registry hit in
+the legacy pipeline (46,598 rows for 23,295 files) — while bronze keeps the
+full provenance the MERGE used to destroy.
 
 Reads:  s3://<bronze-bucket>/<prefix>/<study_id>/*.xlsx  (prefix defaults to
         `submissions`; study_id is taken from the first path segment under it)
@@ -50,6 +55,7 @@ import io
 import logging
 import os
 import sys
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
@@ -90,6 +96,7 @@ PROVENANCE_COLUMNS = [
     "_src_g3mt_version",
     "_src_schema_file",
     "_src_target_node",
+    "_src_batch_id",
     "_src_ingested_at",
     "row_hash",
 ]
@@ -115,9 +122,29 @@ def parse_args():
         default="false",
         help="'true' parses and reports without writing any table.",
     )
+    parser.add_argument(
+        "--JOB_RUN_ID",
+        default=None,
+        help="Glue's job-run id, used as _src_batch_id (auto-generated if absent).",
+    )
     # Glue passes --JOB_NAME and friends; ignore anything we do not declare.
     args, _unknown = parser.parse_known_args()
     return args
+
+
+def batch_id_for_run(job_run_id) -> str:
+    """One identifier per ingest run, stamped on every row it writes.
+
+    Glue supplies --JOB_RUN_ID (`jr_...`) so a bronze batch can be traced
+    straight back to its job run and its logs. Outside Glue (local runs,
+    tests) a unique fallback id keeps the append-only design intact. Note
+    Glue run ids are opaque, NOT time-ordered — order batches by
+    _src_ingested_at, which this job stamps once per run.
+    """
+    if job_run_id and str(job_run_id).strip():
+        return str(job_run_id).strip()
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"local-{stamp}-{uuid.uuid4().hex[:8]}"
 
 
 # ---------- workbook parsing ----------
@@ -202,23 +229,30 @@ def compute_row_hash(record: dict, columns: list) -> str:
     Hashes the cell values **plus** the source file, sheet and row number. The
     coordinates are included so two genuinely different rows that happen to
     carry identical values (a repeated measurement, say) stay distinct, while
-    re-depositing the same workbook reproduces the same hashes exactly and the
-    MERGE becomes a no-op.
+    re-depositing the same workbook reproduces the same hashes exactly —
+    bronze appends both copies (each under its own batch id), and the
+    bronze->silver dedup collapses them to the newest. Batch stamps
+    (_src_batch_id, _src_ingested_at) are deliberately excluded from the hash.
     """
     payload = "|".join(f"{c}={record.get(c, '')}" for c in columns)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def frame_for_node(
-    workbook, sheet_name: str, node: str, meta: dict, s3_uri: str, study_id: str
+    workbook, sheet_name: str, node: str, meta: dict, s3_uri: str, study_id: str,
+    batch_id: str, ingested_at: str,
 ) -> pd.DataFrame:
-    """Parse one node sheet and stamp provenance onto every row."""
+    """Parse one node sheet and stamp provenance onto every row.
+
+    ``batch_id`` and ``ingested_at`` are computed once per run in main() so
+    every row a run writes — across sheets, workbooks and worker threads —
+    carries the same batch stamp.
+    """
     df = read_node_sheet(workbook, sheet_name)
     if df.empty:
         return df
 
     provenance = meta["provenance"]
-    ingested_at = datetime.now(timezone.utc).isoformat()
     data_columns = [c for c in df.columns if c != "_src_row"]
 
     df["_src_file"] = s3_uri
@@ -227,6 +261,7 @@ def frame_for_node(
     df["_src_g3mt_version"] = provenance.get("g3mt_version", "")
     df["_src_schema_file"] = provenance.get("schema_file", "")
     df["_src_target_node"] = provenance.get("target_node", "")
+    df["_src_batch_id"] = batch_id
     df["_src_ingested_at"] = ingested_at
 
     hash_columns = data_columns + ["_src_file", "_src_sheet", "_src_row"]
@@ -273,7 +308,7 @@ def load_workbook_from_s3(uri: str, session):
 
 # ---------- main ----------
 
-def ingest_workbook(uri: str, study_id: str, session) -> list:
+def ingest_workbook(uri: str, study_id: str, session, batch_id: str, ingested_at: str) -> list:
     """Parse one workbook into (table_name, frame) pairs. Raises on bad input."""
     workbook = load_workbook_from_s3(uri, session)
     meta = read_meta(workbook)
@@ -285,7 +320,9 @@ def ingest_workbook(uri: str, study_id: str, session) -> list:
                 uri, node, sheet_name,
             )
             continue
-        df = frame_for_node(workbook, sheet_name, node, meta, uri, study_id)
+        df = frame_for_node(
+            workbook, sheet_name, node, meta, uri, study_id, batch_id, ingested_at
+        )
         if df.empty:
             logger.info("%s: node '%s' has no filled rows.", uri, node)
             continue
@@ -297,11 +334,23 @@ def main():
     args = parse_args()
     dry_run = str(args.DRY_RUN).strip().lower() == "true"
     session = boto3.Session(region_name=args.REGION)
+    batch_id = batch_id_for_run(args.JOB_RUN_ID)
+    ingested_at = datetime.now(timezone.utc).isoformat()
+    logger.info("Batch %s (ingested_at %s)", batch_id, ingested_at)
 
-    rc = resolver.ResolvedConfig(args.PROJECT_ID, args.ENV, args.REGION)
+    rc = resolver.resolve(args.PROJECT_ID, args.ENV, region=args.REGION)
+    required = [
+        "buckets/bronze", "glue/db/bronze", "athena/outputLocation", "athena/workgroup",
+    ]
+    missing = [k for k in required if not rc.get(k)]
+    if missing:
+        raise SystemExit(
+            "Missing SSM parameter(s) under /%s/%s: %s — is the CDK deploy "
+            "complete for this env?" % (args.PROJECT_ID, args.ENV, ", ".join(missing))
+        )
     bronze_bucket = rc.get("buckets/bronze")
     bronze_db = rc.get("glue/db/bronze")
-    athena_output = rc.get("athena/output")
+    athena_output = rc.get("athena/outputLocation")
     workgroup = rc.get("athena/workgroup")
 
     prefix = args.S3_PREFIX.strip("/")
@@ -321,7 +370,10 @@ def main():
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {
-            pool.submit(ingest_workbook, uri, study, boto3.Session(region_name=args.REGION)): uri
+            pool.submit(
+                ingest_workbook, uri, study,
+                boto3.Session(region_name=args.REGION), batch_id, ingested_at,
+            ): uri
             for uri, study in workbooks
         }
         for future in as_completed(futures):
@@ -358,9 +410,8 @@ def main():
             table_location=f"s3://{bronze_bucket}/{table}/",
             temp_path=f"{athena_output.rstrip('/')}/tmp_{table}/",
             workgroup=workgroup,
-            # MERGE on row_hash: re-depositing an unchanged workbook rewrites
-            # the same rows rather than appending a second copy.
-            merge_cols=["row_hash"],
+            # Plain append: bronze keeps every batch (full provenance).
+            # Dedup on row_hash happens at bronze->silver promotion.
             schema_evolution=True,
             boto3_session=session,
         )

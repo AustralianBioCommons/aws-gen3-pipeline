@@ -36,7 +36,7 @@ Twelve CDK stacks (TypeScript), which together provide:
 | Capability | AWS services |
 |---|---|
 | **Lakehouse storage** — bronze (raw, as-submitted), silver (cleaned), gold (publishable) as Iceberg tables | S3, Glue Data Catalog |
-| **Ingestion** — metadata-template workbooks deposited to S3 become bronze tables with row-level provenance; re-uploads are no-ops | Glue python-shell jobs |
+| **Ingestion** — metadata-template workbooks deposited to S3 become append-only bronze tables with row-level and batch-level provenance; re-uploads dedup at silver on `row_hash` | Glue python-shell jobs |
 | **Transformation CI/CD** — your dbt repo drives silver/gold; commits build into isolated `ci_` databases, never the real warehouse | CodePipeline, CodeBuild |
 | **Validation gate** — records are rendered to Gen3-shaped JSON and checked against the dictionary; the run **fails** if real errors remain, so green = schema-clean | Step Functions, Glue |
 | **Data releases** — pushing a `data-v*` tag writes a versioned entry to a release ledger and emits structured release JSONs for the Gen3 deployment | CodePipeline, Step Functions |

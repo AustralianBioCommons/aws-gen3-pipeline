@@ -76,6 +76,44 @@ describe('glue-scripts — the Python CDK ships to S3', () => {
         }
     });
 
+    it('the ingest job resolves its names under the keys SSM actually publishes', () => {
+        // The job reads four names from the /{project}/{env} SSM tree. The
+        // published key is athena/outputLocation (lib/ssm-keys.ts), and the
+        // resolver's entry point is resolver.resolve() — constructing
+        // ResolvedConfig directly passes the region string where the params
+        // mapping belongs. Both mistakes shipped once and only surface minutes
+        // into a live Glue run, so pin them here.
+        const source = read('ingest_metadata_templates.py');
+        const code = source
+            .split('\n')
+            .filter((line) => !line.trimStart().startsWith('#'))
+            .join('\n');
+
+        expect(code).toContain('resolver.resolve(');
+        expect(code).not.toContain('resolver.ResolvedConfig(');
+        expect(code).toContain('"athena/outputLocation"');
+        expect(code).not.toContain('"athena/output"');
+    });
+
+    it('the ingest job appends to bronze and stamps batch provenance', () => {
+        // Bronze is append-only: every run lands as a new batch and dedup on
+        // row_hash happens at bronze->silver promotion (the dbt template's
+        // dedupe_bronze macro). A merge_cols= reappearing here would silently
+        // restore the old MERGE — overwriting _src_ingested_at in place and
+        // destroying the record of earlier batches — while every CDK test
+        // stayed green. The batch stamp contract: --JOB_RUN_ID is accepted
+        // (Glue supplies it) and _src_batch_id lands on every row.
+        const source = read('ingest_metadata_templates.py');
+        const code = source
+            .split('\n')
+            .filter((line) => !line.trimStart().startsWith('#'))
+            .join('\n');
+
+        expect(code).not.toContain('merge_cols=');
+        expect(code).toContain('"--JOB_RUN_ID"');
+        expect(code).toContain('"_src_batch_id"');
+    });
+
     it('the validator skips the gate when there is nothing to validate', () => {
         // The gate queries the results table, which is created by the first
         // Iceberg write and never by CDK (a CFN Glue table makes Athena's

@@ -66,7 +66,9 @@ aws s3 cp sample_template.xlsx s3://<bronze-bucket>/submissions/<study_id>/
 # then run the <project>-<env>-ingest-metadata-templates Glue job
 ```
 
-One bronze table per node sheet, and re-depositing the same workbook is a no-op.
+One bronze table per node sheet. Bronze is append-only — every run lands as a
+new batch (`_src_batch_id`), and re-deposits are collapsed at bronze→silver
+promotion by deduplicating on `row_hash` (the dbt template's `dedupe_bronze`).
 Full detail in [DATA_LAYERS.md](DATA_LAYERS.md#the-supported-ingestion-path-gen3-metadata-templates).
 
 For a brand-new environment with no real data yet, the dbt template's silver

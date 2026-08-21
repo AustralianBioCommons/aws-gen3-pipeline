@@ -203,24 +203,37 @@ carries provenance so it can be traced to its origin:
 | `_src_sheet` / `_src_row` | the sheet and **spreadsheet row number** it came from |
 | `_src_study_id` | study id from the S3 path |
 | `_src_g3mt_version` / `_src_schema_file` / `_src_target_node` | what generated the workbook |
-| `_src_ingested_at` | UTC ingest timestamp |
+| `_src_batch_id` | the Glue job-run id of the ingest run (a generated `local-...` id outside Glue) |
+| `_src_ingested_at` | UTC ingest timestamp, stamped **once per run** |
 | `row_hash` | stable row identity — see below |
 
 The `_src` prefix cannot collide with a Gen3 property, since no Gen3 property
 starts with an underscore.
 
-### Re-depositing is a no-op
+### Bronze is append-only; silver dedups on `row_hash`
 
-`row_hash` covers the cell values **plus** the source file, sheet and row, and
-the write is a MERGE on that hash. Re-uploading an unchanged workbook rewrites
-the same rows rather than appending a second copy; editing a cell produces a new
-hash, so corrections land as new rows and the original stays traceable.
+Every run **appends** its rows, stamped with that run's `_src_batch_id` and
+`_src_ingested_at` — bronze never rewrites anything, so the complete history of
+every deposit stays queryable. Re-uploading an unchanged workbook therefore
+adds a second copy of every row, under a new batch id but with the **same**
+`row_hash`: the hash covers the cell values plus the source file, sheet and
+row, and deliberately excludes the batch stamps.
+
+Idempotency lives at the bronze→silver promotion instead: dedup on `row_hash`,
+newest `_src_ingested_at` wins (the dbt template ships this as the
+`dedupe_bronze` macro and a reference staging model). Editing a cell produces a
+new hash, so corrections land as new rows and the original stays traceable.
+Silver stays protected from the legacy pipeline's double-ingest failure — an
+additive-by-default registration that silently doubled its corpus on re-run —
+while bronze keeps the provenance a bronze-level MERGE would have destroyed
+(re-ingest used to overwrite `_src_ingested_at` in place, erasing the record of
+earlier batches).
 
 Including the coordinates in the hash is deliberate: two genuinely different
-rows carrying identical values (a repeated measurement) stay distinct. Making
-the ingest idempotent from the start is a direct lesson from the legacy
-pipeline, where an additive-by-default registration silently doubled its corpus
-the first time it was re-run.
+rows carrying identical values (a repeated measurement) stay distinct.
+One thing to know: Glue job-run ids are opaque, **not** time-ordered — order
+batches by `_src_ingested_at`, and use `_src_batch_id` to select or trace a
+specific run.
 
 ---
 
