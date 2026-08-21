@@ -451,18 +451,32 @@ def main():
                         bronze_db, table, len(df), list(df.columns))
             continue
         logger.info("Writing %d row(s) to %s.%s", len(df), bronze_db, table)
-        wr.athena.to_iceberg(
-            df=df,
-            database=bronze_db,
-            table=table,
-            table_location=f"s3://{bronze_bucket}/{table}/",
-            temp_path=f"{athena_output.rstrip('/')}/tmp_{table}/",
-            workgroup=workgroup,
-            # Plain append: bronze keeps every batch (full provenance).
-            # Dedup on row_hash happens at bronze->silver promotion.
-            schema_evolution=True,
-            boto3_session=session,
-        )
+        # temp_path MUST be unique per run and cleaned afterwards: wrangler
+        # stages the frame as parquet here and INSERTs via a temp table over
+        # the whole prefix — and the shipped awswrangler does not delete the
+        # staged files. A reused prefix therefore re-ingests every earlier
+        # run's staging as ghost rows carrying their ORIGINAL batch stamps
+        # (observed live on omix3-test: three runs -> 3x/2x/1x copies).
+        temp_path = f"{athena_output.rstrip('/')}/tmp_{table}_{batch_id}/"
+        try:
+            wr.athena.to_iceberg(
+                df=df,
+                database=bronze_db,
+                table=table,
+                table_location=f"s3://{bronze_bucket}/{table}/",
+                temp_path=temp_path,
+                workgroup=workgroup,
+                # Plain append: bronze keeps every batch (full provenance).
+                # Dedup on row_hash happens at bronze->silver promotion.
+                schema_evolution=True,
+                boto3_session=session,
+            )
+        finally:
+            # Best-effort: never leave staging behind, success or failure.
+            try:
+                wr.s3.delete_objects(temp_path, boto3_session=session)
+            except Exception as exc:  # noqa: BLE001 — cleanup must not mask the write
+                logger.warning("Could not clean staging %s: %s", temp_path, exc)
 
     if failures:
         raise RuntimeError(

@@ -124,6 +124,14 @@ describe('glue-scripts — the Python CDK ships to S3', () => {
         // ("Duplicate column name" — first observed live on omix3-test).
         expect(code).toContain('def athena_safe_frame(');
         expect(code).toContain('athena_safe_frame(df)');
+
+        // The to_iceberg temp_path must be unique per run and cleaned up:
+        // wrangler INSERTs via a temp table over the whole prefix and leaves
+        // the staged parquet behind, so a reused static prefix re-ingests
+        // every earlier run's staging as ghost rows (observed live:
+        // 3 runs -> 3x/2x/1x copies per batch on omix3-test).
+        expect(code).toContain('tmp_{table}_{batch_id}');
+        expect(code).toContain('wr.s3.delete_objects(temp_path');
     });
 
     it('the validator skips the gate when there is nothing to validate', () => {
