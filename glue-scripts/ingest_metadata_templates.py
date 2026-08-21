@@ -45,7 +45,12 @@ Reads:  s3://<bronze-bucket>/<prefix>/<study_id>/*.xlsx  (prefix defaults to
 Writes: <project>_<env>_bronze_db.bronze_<study_id>_<node>
 
 Names come from the env's SSM tree via the g3dt resolver — the job receives
-only --PROJECT_ID/--ENV/--REGION from the CDK.
+only --PROJECT_ID/--ENV/--REGION from the CDK. Discovery can be re-pointed
+per run with --S3_PREFIX (no permission change; the bronze grant is
+bucket-wide) or --S3_BUCKET (the Glue ETL role must be granted read on the
+other bucket — see docs/DATA_LAYERS.md); writes always target the bronze
+bucket. How the job finds workbooks, end to end, is documented in
+docs/DATA_LAYERS.md ("How the job finds workbooks").
 
 Environment overrides (optional): TEMPLATE_INGEST_MAX_WORKERS (default 8).
 """
@@ -110,7 +115,17 @@ def parse_args():
     parser.add_argument(
         "--S3_PREFIX",
         default=DEFAULT_PREFIX,
-        help=f"Prefix under the bronze bucket to scan (default: {DEFAULT_PREFIX}).",
+        help=f"Prefix under the scanned bucket to look in (default: {DEFAULT_PREFIX}).",
+    )
+    parser.add_argument(
+        "--S3_BUCKET",
+        default=None,
+        help=(
+            "Bucket to scan for workbooks (default: the env's bronze bucket "
+            "from SSM). Bronze tables always land in the bronze bucket; a "
+            "non-default bucket needs the Glue ETL role granted read on it — "
+            "see docs/DATA_LAYERS.md."
+        ),
     )
     parser.add_argument(
         "--STUDY",
@@ -353,13 +368,16 @@ def main():
     athena_output = rc.get("athena/outputLocation")
     workgroup = rc.get("athena/workgroup")
 
+    # Discovery may be pointed at another bucket/prefix; the bronze tables
+    # themselves always land in the env's bronze bucket regardless.
+    scan_bucket = args.S3_BUCKET or bronze_bucket
     prefix = args.S3_PREFIX.strip("/")
     logger.info(
         "Scanning s3://%s/%s/ for g3mt workbooks (study filter: %s)",
-        bronze_bucket, prefix, args.STUDY or "ALL",
+        scan_bucket, prefix, args.STUDY or "ALL",
     )
 
-    workbooks = discover_workbooks(bronze_bucket, prefix, session, args.STUDY)
+    workbooks = discover_workbooks(scan_bucket, prefix, session, args.STUDY)
     if not workbooks:
         logger.warning("No .xlsx workbooks found. Nothing to do.")
         return

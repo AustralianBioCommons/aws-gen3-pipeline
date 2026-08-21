@@ -93,6 +93,11 @@ describe('glue-scripts — the Python CDK ships to S3', () => {
         expect(code).not.toContain('resolver.ResolvedConfig(');
         expect(code).toContain('"athena/outputLocation"');
         expect(code).not.toContain('"athena/output"');
+
+        // Discovery can be re-pointed per run (--S3_BUCKET falls back to the
+        // SSM bronze bucket) — the override is documented in DATA_LAYERS.md
+        // with its IAM implications, so it must not silently disappear.
+        expect(code).toContain('"--S3_BUCKET"');
     });
 
     it('the ingest job appends to bronze and stamps batch provenance', () => {

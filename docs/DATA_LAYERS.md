@@ -157,23 +157,77 @@ workbook with **one sheet per node on the path to your target**, in fill order,
 with parent links and controlled values as **dropdowns** — so most submission
 errors cannot be made in the first place.
 
-### Depositing
+### How the job finds workbooks
 
-The study id is the **first path segment** under the scanned prefix:
+There is no registration step and no configured file list — everything is
+resolved at run time, by convention. The job is handed only
+`--PROJECT_ID/--ENV/--REGION` (baked in as CDK default arguments), and then:
 
-```
-s3://<project>-<env>-bronze-<account>-<region>/submissions/<study_id>/<anything>.xlsx
-                                                   └ prefix ─┘ └ study ─┘
-```
+1. **Bucket from SSM.** It resolves the env's parameter tree
+   (`/{project}/{env}/*`) via the g3dt resolver and reads `buckets/bronze` —
+   that is the bucket it scans.
+2. **Prefix by convention.** It lists everything under
+   `s3://<bronze-bucket>/submissions/` recursively (`submissions` is just the
+   `--S3_PREFIX` default), keeping every `*.xlsx` and skipping Excel `~$`
+   lockfiles.
+3. **Study from the key.** The **first path segment** under the prefix is the
+   study id — it names the bronze tables:
 
-Then run the job (from the console, a schedule, or an S3 event — the CDK
-creates it; wiring a trigger is your choice):
+   ```
+   s3://<project>-<env>-bronze-<account>-<region>/submissions/<study_id>/<anything>.xlsx
+                                                      └ prefix ─┘ └ study ─┘
+   ```
+
+   A workbook dropped directly at the prefix root (no study folder) is not an
+   error — it lands under a study literally called `unassigned`.
+4. **Sheets from the workbook itself.** Inside each file, the hidden `_g3mt`
+   sheet's node → sheet map says which sheets are data and which node each one
+   becomes (`bronze_<study_id>_<node>`) — no node list lives in config.
+
+So depositing is the whole handover: drop a `.xlsx` under
+`submissions/<study_id>/`, then run the job (from the console, a schedule, or
+an S3 event — the CDK creates it; wiring a trigger is your choice):
 
 | Argument | Default | Purpose |
 |---|---|---|
-| `--S3_PREFIX` | `submissions` | Prefix under the bronze bucket to scan |
+| `--S3_PREFIX` | `submissions` | Prefix under the scanned bucket to look in |
+| `--S3_BUCKET` | the env's bronze bucket (SSM) | Scan a different bucket — see the permissions note below |
 | `--STUDY` | all | Ingest only one study id |
 | `--DRY_RUN` | `false` | Parse and report without writing |
+
+### Pointing ingestion at a different bucket or prefix
+
+Both the deposit location and the scan are adjustable per run, but they differ
+in what else has to change:
+
+- **A different prefix** (same bronze bucket) needs nothing beyond passing the
+  matching `--S3_PREFIX` at run time. The Glue ETL role's grant covers the
+  whole bronze bucket, so any prefix inside it is already readable.
+- **A different bucket** (`--S3_BUCKET`) is a real infrastructure change: the
+  Glue ETL role is granted S3 access **only** to the six buckets the pipeline
+  owns (bronze/silver/gold/metadata/validation/athena-results — see
+  `lib/stacks/iam-roles-stack.ts`), so a scan of any other bucket fails with
+  `AccessDenied`. To allow it, add a read-only statement for that bucket to
+  the Glue ETL role in `lib/stacks/iam-roles-stack.ts` and redeploy:
+
+  ```ts
+  this.glueJobRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['s3:GetObject', 's3:ListBucket', 's3:GetBucketLocation'],
+      resources: [
+          'arn:aws:s3:::my-submissions-bucket',
+          'arn:aws:s3:::my-submissions-bucket/*',
+      ],
+  }));
+  ```
+
+  If you deploy through a wrapper repo, that file is upstream-owned — send the
+  grant upstream as a config-driven PR, or manage an extra policy on the role
+  (its name is deterministic: `<project>-<env>-glue-etl-role`) outside the CDK
+  app. A bucket in **another account** additionally needs its own bucket
+  policy to allow this role.
+
+  Note the write side never moves: bronze tables always land in the env's
+  bronze bucket and `<project>_<env>_bronze_db`, whatever was scanned.
 
 ### What the job relies on
 
