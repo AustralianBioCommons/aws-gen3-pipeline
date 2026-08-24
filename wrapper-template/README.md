@@ -64,12 +64,28 @@ environments first.
 
 Full guide → upstream [`docs/WRAPPER_GUIDE.md`](https://github.com/AustralianBioCommons/aws-gen3-pipeline/blob/main/docs/WRAPPER_GUIDE.md).
 
+## Quickstart: ingest a metadata-template submission
+
+```bash
+# Deposit a filled g3mt workbook under submissions/<study>/ in the bronze
+# bucket; the script derives every name from your config and prints the
+# ready-to-paste Glue job commands (dry run first).
+./scripts/upload_submission.sh filled_workbook.xlsx <study-id>
+```
+
+One bronze Iceberg table per node sheet, named `bronze_<study>_<node>`.
+`--prefix`/`--bucket` re-point the deposit (a non-default bucket needs a Glue
+ETL role grant added upstream first — the script warns).
+
+Full guide → upstream [`docs/INGESTION.md`](https://github.com/AustralianBioCommons/aws-gen3-pipeline/blob/main/docs/INGESTION.md).
+
 ## What lives where
 
 | Path | Purpose |
 |---|---|
 | `config/<project>.<env>.json` | Real deployment inputs (accounts, ARNs, Gen3 facts, `customJobs`) |
 | `glue-scripts/*.py` | Your custom Glue job scripts, overlaid into upstream at deploy time |
+| `scripts/upload_submission.sh` | Deposit a g3mt workbook for the ingest Glue job and print the run commands |
 | `cdk.context.json` | CDK's cached account lookups — commit it here (it is gitignored upstream) |
 | `UPSTREAM_VERSION` | The upstream git tag every deploy uses |
 | `deploy.sh` | Clone upstream @ pin → overlay → test → diff → deploy |

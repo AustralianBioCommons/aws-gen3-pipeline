@@ -18,27 +18,30 @@ describe('wrapper-template — the scaffold every wrapper starts from', () => {
         for (const f of [
             'README.md', '.gitignore', 'UPSTREAM_VERSION', 'deploy.sh',
             'config/README.md', 'glue-scripts/README.md',
+            'scripts/upload_submission.sh',
         ]) {
             expect(fs.existsSync(path.join(template, f))).toBe(true);
         }
     });
 
-    it('deploy.sh and init-wrapper.sh are executable', () => {
+    it('the shipped shell scripts are executable', () => {
         // cp -R preserves mode bits, so a lost +x here means every generated
         // wrapper's first `./deploy.sh` fails with "permission denied".
         for (const f of [
             path.join(template, 'deploy.sh'),
+            path.join(template, 'scripts', 'upload_submission.sh'),
             path.join(root, 'scripts', 'init-wrapper.sh'),
         ]) {
             expect(fs.statSync(f).mode & 0o100).toBeTruthy();
         }
     });
 
-    it('both scripts parse as valid bash', () => {
+    it('the shipped shell scripts parse as valid bash', () => {
         // `bash -n` is a parse-only check: cheap, offline, and catches the
         // quoting/heredoc mistakes shell scripts are prone to.
         for (const f of [
             path.join(template, 'deploy.sh'),
+            path.join(template, 'scripts', 'upload_submission.sh'),
             path.join(root, 'scripts', 'init-wrapper.sh'),
         ]) {
             const result = spawnSync('bash', ['-n', f], { encoding: 'utf-8' });
