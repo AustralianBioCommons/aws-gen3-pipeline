@@ -129,7 +129,7 @@ Beyond standard transformations, this pipeline enforces strict quality gates and
 
 ### Prerequisites
 Before you begin, ensure you have the following installed:
-- **Node.js** (current LTS)
+- **Node.js** (v22 or newer — `nvm install` from the repo root reads `.nvmrc`)
 - **AWS CLI** (configured with `aws configure`)
 - **Git**
 
