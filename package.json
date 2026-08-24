@@ -1,8 +1,11 @@
 {
   "name": "aws-gen3-pipeline",
-  "version": "3.2.0",
+  "version": "3.4.2",
   "description": "Config-driven AWS CDK data pipeline for Gen3 data commons (Glue/Athena/dbt/Step Functions)",
   "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/AustralianBioCommons/aws-gen3-pipeline"
