@@ -29,13 +29,20 @@ const python = spawnSync('python3', ['--version']).status === 0 ? 'python3' : nu
 describe('glue-scripts — the Python CDK ships to S3', () => {
     it('finds the scripts CDK expects to upload', () => {
         // A rename here silently breaks lib/names.ts's scriptLocation, which
-        // resolves file names this test would otherwise never see.
-        expect(scripts.sort()).toEqual([
-            'ingest_metadata_templates.py',
-            'silver_json_gen3_validator.py',
-            'write_data_release_to_json.py',
-            'write_validation_jsons.py',
-        ]);
+        // resolves file names this test would otherwise never see. The four
+        // built-ins must be present under exactly these names. EXTRA .py files
+        // are legitimate, not drift: a deployment wrapper overlays its
+        // customJobs[] scripts into glue-scripts/ BEFORE deploy.sh runs this
+        // suite (see WRAPPER_GUIDE.md), synth fails on any declared scriptFile
+        // that is missing, and the compile test below covers every file found.
+        expect(scripts).toEqual(
+            expect.arrayContaining([
+                'ingest_metadata_templates.py',
+                'silver_json_gen3_validator.py',
+                'write_data_release_to_json.py',
+                'write_validation_jsons.py',
+            ]),
+        );
     });
 
     (python ? it : it.skip)('every script compiles', () => {
