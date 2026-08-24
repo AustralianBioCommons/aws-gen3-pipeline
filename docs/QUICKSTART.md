@@ -21,7 +21,7 @@ your config, pinned to an upstream release
 ```bash
 git clone --depth 1 https://github.com/AustralianBioCommons/aws-gen3-pipeline.git /tmp/g3p
 /tmp/g3p/scripts/init-wrapper.sh ~/code/<project>-pipeline-deploy \
-  --project <project> --envs <env> --upstream-version v2.2.0   # use the latest release tag
+  --project <project> --envs <env> --upstream-version v3.5.0   # use the latest release tag
 cd ~/code/<project>-pipeline-deploy
 gh repo create <org>/<project>-pipeline-deploy --private --source . --push
 ```
