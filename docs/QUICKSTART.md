@@ -10,7 +10,7 @@ Fill in the placeholders with your values: `<project>` (e.g. `myproject`),
 SSO profile), `<org>` (your GitHub org).
 
 **Prerequisites** (installs and SSO setup: [RUNBOOK step 0](RUNBOOK.md#0-prerequisites)):
-Node.js LTS, AWS CLI v2 with an SSO profile logged in (`aws sso login
+Node.js v22 or newer, AWS CLI v2 with an SSO profile logged in (`aws sso login
 --profile <your-profile>`), Python 3.11+ with pipx, jq, and a GitHub org for
 two private repos.
 
@@ -111,10 +111,16 @@ Done: the gold bucket now holds a versioned `release_jsons/v0.1.0/` folder —
 the artifact a Gen3 deployment consumes
 ([RUNBOOK step 10](RUNBOOK.md#10-the-end-state--a-versioned-release-folder)).
 
+**12. When real data arrives** — a researcher fills a `g3mt` workbook, you
+deposit it under `submissions/<study>/` and run the ingest Glue job; the
+worked example is [INGESTION.md](INGESTION.md)
+([RUNBOOK step 11](RUNBOOK.md#11-when-real-data-arrives)).
+
 ---
 
 - Every step explained, with checks and troubleshooting: **[RUNBOOK.md](RUNBOOK.md)**
 - Why it works this way: **[CONCEPTS.md](CONCEPTS.md)**
+- Ingesting real submissions: **[INGESTION.md](INGESTION.md)**
 - Day-to-day operation: **[OPERATIONS.md](OPERATIONS.md)**
 - Contributors deploying from a checkout of this repo:
   **[DEVELOPER_GUIDE.md section 6](DEVELOPER_GUIDE.md#6-deployment)**

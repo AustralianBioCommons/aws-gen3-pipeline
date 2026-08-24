@@ -63,7 +63,8 @@ S3, and run the ingest job:
 ```bash
 g3mt generate <schema> sample -o sample_template.xlsx    # ...fill it in...
 aws s3 cp sample_template.xlsx s3://<bronze-bucket>/submissions/<study_id>/
-# then run the <project>-<env>-ingest-metadata-templates Glue job
+aws glue start-job-run --job-name <project>-<env>-ingest-metadata-templates \
+  --arguments '{"--STUDY":"<study_id>"}' --profile <your-profile>
 ```
 
 One bronze table per node sheet. Bronze is append-only — every run lands as a
@@ -74,8 +75,9 @@ The job needs no path argument: the bucket comes from SSM (`buckets/bronze`),
 the prefix is the `submissions/` convention, the study id is the first folder
 under it, and the sheets come from the workbook's own `_g3mt` map. `--S3_PREFIX`
 and `--S3_BUCKET` re-point a run — a non-default **bucket** also needs a Glue
-ETL role grant. Full detail, including the permissions change, in
-[DATA_LAYERS.md](DATA_LAYERS.md#how-the-job-finds-workbooks).
+ETL role grant. The full walkthrough — a worked example, launching and
+watching the job, what parameters create what tables, and the permissions
+change — is **[INGESTION.md](INGESTION.md)**.
 
 For a brand-new environment with no real data yet, the dbt template's silver
 models generate deterministic synthetic data (`dbt build` alone — bronze stays
@@ -265,5 +267,6 @@ nothing else should be in progress.
 ## See also
 
 - [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) — mechanisms, failure modes, and why
+- [INGESTION.md](INGESTION.md) — ingesting metadata-template submissions end to end
 - [DATA_LAYERS.md](DATA_LAYERS.md) — the bronze/silver/gold contract
 - [CONFIG_GUIDE.md](CONFIG_GUIDE.md) / [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)

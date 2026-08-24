@@ -51,7 +51,9 @@ What gets seeded:
 
 - everything in [`../wrapper-template/`](../wrapper-template/) — `deploy.sh`,
   a README with the wrapper quickstarts, `.gitignore`, empty `config/` and
-  `glue-scripts/` directories;
+  `glue-scripts/` directories, and `scripts/upload_submission.sh` (deposits a
+  g3mt workbook for the ingest job and prints the launch commands —
+  [INGESTION.md](INGESTION.md) is the guide);
 - `UPSTREAM_VERSION` containing the pinned tag;
 - one `config/<project>.<env>.json` per `--envs` entry, copied from
   [`example-config.json`](example-config.json) with `projectId` and

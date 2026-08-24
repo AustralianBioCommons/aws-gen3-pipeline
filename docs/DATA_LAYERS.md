@@ -22,9 +22,9 @@ The CDK creates a bucket *and* a Glue database per layer, per environment
 
 | Layer | Bucket | Glue database | Built by | Rebuilt by CI? |
 |---|---|---|---|---|
-| **Bronze** | `<project>-<env>-bronze-<account>-<region>` | `<project>_<env>_bronze_db` | **you** — any ingestion you like | **No** |
-| **Silver** | `<project>-<env>-silver-<account>-<region>` | `<project>_<env>_silver_db` | dbt | Yes → `ci_<project>_<env>_silver_db` |
-| **Gold** | `<project>-<env>-gold-<account>-<region>` | `<project>_<env>_gold_db` | dbt | Yes → `ci_<project>_<env>_gold_db` |
+| **Bronze** | `<project>-<env>-bronze-<account-id>-<region>` | `<project>_<env>_bronze_db` | **you** — any ingestion you like | **No** |
+| **Silver** | `<project>-<env>-silver-<account-id>-<region>` | `<project>_<env>_silver_db` | dbt | Yes → `ci_<project>_<env>_silver_db` |
+| **Gold** | `<project>-<env>-gold-<account-id>-<region>` | `<project>_<env>_gold_db` | dbt | Yes → `ci_<project>_<env>_gold_db` |
 
 Note what is missing from that table: **there is no `ci_` bronze database.** That
 is not an oversight. CI rebuilds silver and gold from bronze on every commit, so
@@ -157,77 +157,13 @@ workbook with **one sheet per node on the path to your target**, in fill order,
 with parent links and controlled values as **dropdowns** — so most submission
 errors cannot be made in the first place.
 
-### How the job finds workbooks
-
-There is no registration step and no configured file list — everything is
-resolved at run time, by convention. The job is handed only
-`--PROJECT_ID/--ENV/--REGION` (baked in as CDK default arguments), and then:
-
-1. **Bucket from SSM.** It resolves the env's parameter tree
-   (`/{project}/{env}/*`) via the g3dt resolver and reads `buckets/bronze` —
-   that is the bucket it scans.
-2. **Prefix by convention.** It lists everything under
-   `s3://<bronze-bucket>/submissions/` recursively (`submissions` is just the
-   `--S3_PREFIX` default), keeping every `*.xlsx` and skipping Excel `~$`
-   lockfiles.
-3. **Study from the key.** The **first path segment** under the prefix is the
-   study id — it names the bronze tables:
-
-   ```
-   s3://<project>-<env>-bronze-<account>-<region>/submissions/<study_id>/<anything>.xlsx
-                                                      └ prefix ─┘ └ study ─┘
-   ```
-
-   A workbook dropped directly at the prefix root (no study folder) is not an
-   error — it lands under a study literally called `unassigned`.
-4. **Sheets from the workbook itself.** Inside each file, the hidden `_g3mt`
-   sheet's node → sheet map says which sheets are data and which node each one
-   becomes (`bronze_<study_id>_<node>`) — no node list lives in config.
-
-So depositing is the whole handover: drop a `.xlsx` under
-`submissions/<study_id>/`, then run the job (from the console, a schedule, or
-an S3 event — the CDK creates it; wiring a trigger is your choice):
-
-| Argument | Default | Purpose |
-|---|---|---|
-| `--S3_PREFIX` | `submissions` | Prefix under the scanned bucket to look in |
-| `--S3_BUCKET` | the env's bronze bucket (SSM) | Scan a different bucket — see the permissions note below |
-| `--STUDY` | all | Ingest only one study id |
-| `--DRY_RUN` | `false` | Parse and report without writing |
-
-### Pointing ingestion at a different bucket or prefix
-
-Both the deposit location and the scan are adjustable per run, but they differ
-in what else has to change:
-
-- **A different prefix** (same bronze bucket) needs nothing beyond passing the
-  matching `--S3_PREFIX` at run time. The Glue ETL role's grant covers the
-  whole bronze bucket, so any prefix inside it is already readable.
-- **A different bucket** (`--S3_BUCKET`) is a real infrastructure change: the
-  Glue ETL role is granted S3 access **only** to the six buckets the pipeline
-  owns (bronze/silver/gold/metadata/validation/athena-results — see
-  `lib/stacks/iam-roles-stack.ts`), so a scan of any other bucket fails with
-  `AccessDenied`. To allow it, add a read-only statement for that bucket to
-  the Glue ETL role in `lib/stacks/iam-roles-stack.ts` and redeploy:
-
-  ```ts
-  this.glueJobRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['s3:GetObject', 's3:ListBucket', 's3:GetBucketLocation'],
-      resources: [
-          'arn:aws:s3:::my-submissions-bucket',
-          'arn:aws:s3:::my-submissions-bucket/*',
-      ],
-  }));
-  ```
-
-  If you deploy through a wrapper repo, that file is upstream-owned — send the
-  grant upstream as a config-driven PR, or manage an extra policy on the role
-  (its name is deterministic: `<project>-<env>-glue-etl-role`) outside the CDK
-  app. A bucket in **another account** additionally needs its own bucket
-  policy to allow this role.
-
-  Note the write side never moves: bronze tables always land in the env's
-  bronze bucket and `<project>_<env>_bronze_db`, whatever was scanned.
+**The task guide is [INGESTION.md](INGESTION.md)** — a worked example on the
+stock defaults, how the job discovers workbooks (bucket from SSM, the
+`submissions/<study_id>/` convention), how to launch it, how its arguments
+decide which `bronze_<study_id>_<node>` tables get created, and how to
+re-point it at another bucket or prefix (including the IAM change that
+needs). This doc keeps to the contract: what the job relies on, and what
+lands.
 
 ### What the job relies on
 
@@ -358,6 +294,8 @@ console edit cannot become the real behaviour.
 
 ## See also
 
+- [INGESTION.md](INGESTION.md) — the end-to-end task guide: worked example,
+  launching the ingest job, and what parameters create what tables
 - [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) — CI/release isolation, the
   validation gate, and known gaps
 - [CONFIG_GUIDE.md](CONFIG_GUIDE.md) — every INPUT field, including the Gen3 facts

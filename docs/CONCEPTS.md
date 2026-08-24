@@ -181,8 +181,9 @@ The platform is deliberately **unopinionated about ingestion and opinionated
 about what comes out of it**. The contract is only three requirements:
 
 1. **Raw data lands in bronze** — however you get it there. The supported
-   no-code path is metadata-template workbooks dropped in S3, but a Glue job,
-   a Lambda, or a manual upload all count. Bronze is an *input* to the
+   no-code path is metadata-template workbooks dropped in S3
+   ([INGESTION.md](INGESTION.md) is the walkthrough), but a Glue job, a
+   Lambda, or a manual upload all count. Bronze is an *input* to the
    platform, not a product of it — dbt never writes it, and that boundary is
    enforced by IAM, not convention.
 2. **Silver is built by dbt and is Gen3-shaped** — one model per Gen3 node,

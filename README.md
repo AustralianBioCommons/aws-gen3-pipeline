@@ -91,6 +91,7 @@ g3mt generate <schema> sample -o template.xlsx  # sample metadata workbook (g3mt
                                                 #   pipx install gen3-metadata-templates)
 aws s3 cp template.xlsx s3://<bronze-bucket>/submissions/<study_id>/
                                                 # ...then run the ingest Glue job
+                                                #   (walkthrough: docs/INGESTION.md)
 
 g3dt metadata upload --study mystudy --env test # upload study metadata to the commons
 g3dt indexd register --s3-paths s3://bucket/study/ --study mystudy --env test
@@ -124,7 +125,8 @@ every step — backed by reference guides:
 | [docs/WRAPPER_GUIDE.md](docs/WRAPPER_GUIDE.md) | Creating, operating, or upgrading a deployment wrapper |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | **Day-to-day: what to run** — the quick guide |
 | [docs/OPERATIONS_DETAIL.md](docs/OPERATIONS_DETAIL.md) | Something behaved unexpectedly, or you are changing something structural |
-| [docs/DATA_LAYERS.md](docs/DATA_LAYERS.md) | Designing ingestion, or wondering what bronze/silver/gold must contain |
+| [docs/INGESTION.md](docs/INGESTION.md) | **Ingest a submission** — workbook to bronze tables end to end: worked example, launching the Glue job, what parameters create what tables |
+| [docs/DATA_LAYERS.md](docs/DATA_LAYERS.md) | The bronze/silver/gold contract — what each layer must contain |
 | [docs/CONFIG_GUIDE.md](docs/CONFIG_GUIDE.md) | Writing or reviewing a per-env config |
 | [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) | Contributing, or navigating the stack map |
 | [docs/VPC_NETWORKING.md](docs/VPC_NETWORKING.md) | Networking and Gen3 access modes |

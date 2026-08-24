@@ -53,15 +53,19 @@ git --version          # any recent version is fine
 # macOS: xcode-select --install     Linux: sudo apt install git / sudo dnf install git
 ```
 
-**Node.js (current LTS)** — via [nvm](https://github.com/nvm-sh/nvm) so you
-can switch versions later:
+**Node.js (v22 or newer — required)** — via [nvm](https://github.com/nvm-sh/nvm)
+so you can switch versions later:
 
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 # restart your shell, then:
-nvm install --lts
-node --version         # v22.x or newer LTS
+nvm install 22
+node --version         # v22.x or newer
 ```
+
+> This repo (and every wrapper scaffolded from it) carries a `.nvmrc`, so once
+> you have a checkout a plain `nvm install` / `nvm use` from the repo root
+> picks the right version automatically.
 
 > **Note:** you do **not** need `npm install -g aws-cdk`. This repo pins the
 > CDK CLI as a dev-dependency and every command below uses `npx cdk ...`,
@@ -572,9 +576,12 @@ SELECT count(*) FROM <project>_<env>_silver_db.silver_synth1_case;
 
 1. Ingest into bronze — any way you like; the supported no-code path is
    [gen3-metadata-templates](https://github.com/AustralianBioCommons/gen3-metadata-templates)
-   workbooks + the `<project>-<env>-ingest-metadata-templates` Glue job
-   ([DATA_LAYERS.md](DATA_LAYERS.md)). CodeBuild/dbt cannot write bronze —
-   that boundary is enforced by IAM, not convention.
+   workbooks + the `<project>-<env>-ingest-metadata-templates` Glue job.
+   **[INGESTION.md](INGESTION.md)** is the full walkthrough: a worked
+   example, depositing under `submissions/<study>/`, launching the job with
+   `aws glue start-job-run` (dry run first), and how its arguments decide
+   which `bronze_<study>_<node>` tables get created. CodeBuild/dbt cannot
+   write bronze — that boundary is enforced by IAM, not convention.
 2. In the dbt repo: add a `models/sources.yml` over your bronze tables
    (schema from `G3DT_DB_BRONZE`) and replace the synthetic generator models
    with silver models reading `{{ source(...) }}` — same output shape
@@ -614,6 +621,8 @@ SELECT count(*) FROM <project>_<env>_silver_db.silver_synth1_case;
 | Validation / write-release-jsons Step Function stage fails | Check the Glue job run logs (`/aws-glue/python-jobs/output`); scripts deploy automatically on every deploy (step 4) |
 | `write-release-jsons` fails with `ConcurrentRunsExceededException` right after a release | It auto-runs post-release; your manual start collided with it. Check the newest execution — the automatic one likely SUCCEEDED |
 | dbt test errors `ICEBERG_MISSING_METADATA` after changing a model's materialization | Switching an existing Iceberg relation (e.g. incremental → table) can strand its metadata pointer — drop the old Glue table(s) and rebuild |
+| Ingest job: `AccessDenied` when run with `--S3_BUCKET` | The Glue ETL role only has the pipeline's own buckets — a foreign bucket needs a read grant ([INGESTION.md](INGESTION.md#pointing-ingestion-at-a-different-bucket-or-prefix)) |
+| Ingest job rejects a workbook (`no '_g3mt' sheet`), or tables land under `bronze_unassigned_*` | Not a g3mt-generated workbook, or deposited at the prefix root instead of `submissions/<study>/` — see [INGESTION.md](INGESTION.md#troubleshooting) |
 | Release build log: `WARNING: cannot query … builds (missing IAM permission?)` | The CI wait-gate is degrading to a no-op — the pipeline deploy providing `WaitOnCiBuilds` hasn't landed; redeploy |
 | CI green but a laptop `dbt build` targets weird names | You skipped `eval "$(g3dt config dbt-env --env <env>)"` — the `env_var()` defaults only fit the reference environment |
 | `g3dt` errors: missing app fact(s) / missing medallion SSM key | Pipeline not deployed, or toolkit major ahead of the pipeline version — see the pairing table at the top |
