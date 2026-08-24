@@ -39,6 +39,22 @@ done
 [ -n "$PROFILE" ] && [ -n "$ENV_NAME" ] || usage
 
 cd "$(dirname "$0")"
+
+# Fail fast on old Node: the upstream pipeline requires Node >= 22, and the
+# `npm ci --silent` below would swallow npm's engine error message.
+REQUIRED_NODE_MAJOR=22
+if ! command -v node >/dev/null 2>&1; then
+    echo "ERROR: node not found on PATH." >&2
+    echo "       Install Node.js >= ${REQUIRED_NODE_MAJOR}, e.g.: nvm install ${REQUIRED_NODE_MAJOR}" >&2
+    exit 1
+fi
+NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
+if [ "${NODE_MAJOR}" -lt "${REQUIRED_NODE_MAJOR}" ]; then
+    echo "ERROR: Node >= ${REQUIRED_NODE_MAJOR} required, found $(node --version)." >&2
+    echo "       Fix: nvm install    (reads the .nvmrc in this directory), then re-run." >&2
+    exit 1
+fi
+
 TAG="$(tr -d '[:space:]' < UPSTREAM_VERSION)"
 REPO="${UPSTREAM_REPO:-https://github.com/AustralianBioCommons/aws-gen3-pipeline.git}"
 REF="${UPSTREAM_REF:-$TAG}"
