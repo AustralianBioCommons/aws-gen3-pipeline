@@ -72,15 +72,15 @@ npx cdk bootstrap aws://<account-id>/<region> --profile <your-profile>
 
 ```bash
 pipx install gen3-dataops-toolkit
-mkdir -p ~/.g3dt && cat > ~/.g3dt/g3dt.yaml <<EOF
-project: <project>
-region: <region>
-default_env: <env>
-profiles:
-  <env>: <your-profile>
-EOF
-g3dt config show --env <env>       # every resolved name — read them aloud
+g3dt config discover --all-profiles --add   # register deployed infra as contexts
+g3dt config use <project>/<env>             # act there from now on
+g3dt config show                            # every resolved name — read them aloud
 ```
+
+Every command prints the active context first (stderr); production contexts
+are marked `[PROD]` and gate destructive actions behind typing the context
+name. (Toolkit < 3.8.0, or by hand: write `~/.g3dt/g3dt.yaml` with
+`project`/`region`/`default_env`/`profiles:` — still fully supported.)
 
 **7. Verify the deployment** — expect all PASS, plus exactly one WARN if you
 deferred the Gen3 secret ([RUNBOOK step 4](RUNBOOK.md#4-first-deploy)):

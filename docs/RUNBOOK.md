@@ -379,16 +379,21 @@ toolkit needs AWS credentials and this one small marker file, nothing else.
 pipx install gen3-dataops-toolkit
 g3dt version                       # >= 3.3.0 (see the pairing table above)
 
-mkdir -p ~/.g3dt && cat > ~/.g3dt/g3dt.yaml <<EOF
-project: <project>
-region: <region>
-default_env: <env>
-profiles:                # AWS named profile per env (omit on EC2/CI —
-  <env>: <your-profile>  # ambient role credentials are used there)
-EOF
+# Toolkit >= 3.8.0: discover your deployed infrastructure and register it as
+# CONTEXTS — named (project, env, profile, region) tuples — then select one:
+g3dt config discover --all-profiles --add
+g3dt config contexts               # list them (current marked *)
+g3dt config use <project>/<env>    # every following command acts there
 ```
 
-(Config search order is `./g3dt.yaml` → `~/.g3dt/g3dt.yaml` →
+Every g3dt command prints the active context first (on stderr) — read that
+line before anything else. Production contexts are marked `[PROD]`, switching
+to one asks for confirmation, and destructive actions on them require typing
+the context name (`--yes` never bypasses that).
+
+(Older toolkits — or a hand-written marker — use `~/.g3dt/g3dt.yaml` with
+`project`/`region`/`default_env`/`profiles:` keys; 3.8.0 reads those
+unchanged. Config search order is `./g3dt.yaml` → `~/.g3dt/g3dt.yaml` →
 `/etc/g3dt/g3dt.yaml`; the last one is written onto the EC2 job box by CDK
 user-data, which is why the box needs no setup.)
 
@@ -397,9 +402,10 @@ names and read them out loud; they must be the `<project>-<env>-*` set you
 expect:
 
 ```bash
-g3dt config show --env <env>       # every derived name, resolved live from SSM
+g3dt config show                   # every derived name, resolved live from SSM
+                                   # (defaults to the current context; --env <env> also works)
 g3dt config envs                   # environments with a deployed SSM tree
-g3dt config diff --env <env> --file ~/code/<project>-pipeline-deploy/config/<project>.<env>.json
+g3dt config diff --file ~/code/<project>-pipeline-deploy/config/<project>.<env>.json
                                    # exits 1 on drift — usable as a CI gate
 ```
 
@@ -627,7 +633,7 @@ SELECT count(*) FROM <project>_<env>_silver_db.silver_synth1_case;
 |---|---|
 | Any AWS call: `Token has expired and refresh failed` | SSO session expired — `aws sso login --profile <your-profile>` (step 0) |
 | `cdk deploy` fails with "current credentials could not be used" / bootstrap errors | Account+region not bootstrapped — step 4 |
-| `g3dt`: `No SSM parameters found under /<project>/<env>` | Env not deployed, or wrong `project:` in `~/.g3dt/g3dt.yaml` |
+| `g3dt`: `No SSM parameters found under /<project>/<env>` | Env not deployed, or the wrong context is active — check the banner line every command prints, then `g3dt config contexts` / `g3dt config use <name>` (legacy markers: wrong `project:` in `~/.g3dt/g3dt.yaml`) |
 | Pipelines exist but the Source stage fails | CodeConnections connection still `PENDING` — it needs the one-time console handshake ([CONFIG_GUIDE.md section 3.3](CONFIG_GUIDE.md#33-repo--the-dbt-repository-that-drives-cicd)) |
 | Wrong env's names printed by `g3dt config show` | Wrong `--env`, or wrong `-c env=` at deploy time — re-check before running anything that writes |
 | Validation job: `SchemaResolutionError` (or, pre-2.2.0, `KeyError` in `gen3_validator.resolve_schema`) | A structural `$ref` in the dictionary is genuinely broken — the message names the ref and file. (Older gen3-validator < 2.2.0 also crashed on the official dictionary's `term` refs; ensure the pairing table's versions) |
