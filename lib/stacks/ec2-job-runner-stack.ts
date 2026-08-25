@@ -65,8 +65,18 @@ export class Ec2JobRunnerStack extends cdk.Stack {
         });
 
         const bucketArns = Object.values(names.buckets).map((b) => `arn:aws:s3:::${b}`);
+        // GetBucketLocation + the multipart trio are required by Athena run
+        // FROM the box (receipts/registry writes via awswrangler): Athena
+        // verifies the results bucket with GetBucketLocation before every
+        // query, and without it StartQueryExecution fails with
+        // "Unable to verify/create output bucket" (observed live on
+        // acdc/staging). Multipart actions cover large result/Iceberg writes.
         role.addToPolicy(new iam.PolicyStatement({
-            actions: ['s3:GetObject', 's3:PutObject', 's3:ListBucket', 's3:DeleteObject'],
+            actions: [
+                's3:GetObject', 's3:PutObject', 's3:ListBucket', 's3:DeleteObject',
+                's3:GetBucketLocation', 's3:ListBucketMultipartUploads',
+                's3:ListMultipartUploadParts', 's3:AbortMultipartUpload',
+            ],
             resources: [...bucketArns, ...bucketArns.map((a) => `${a}/*`)],
         }));
         role.addToPolicy(new iam.PolicyStatement({
