@@ -86,10 +86,18 @@ export class Ec2JobRunnerStack extends cdk.Stack {
             ],
             resources: ['*'],
         }));
+        // DeleteTable/DeletePartition are required by awswrangler's Iceberg
+        // write path (receipts/registry tables): every to_iceberg() stages
+        // through a temp Glue table it then drops. Without DeleteTable the
+        // write fails AFTER data was submitted to Gen3 — the job dies at the
+        // receipts step with the submission half-recorded (observed live on
+        // acdc/staging: chunk accepted by sheepdog, then
+        // AccessDeniedException: glue:DeleteTable).
         role.addToPolicy(new iam.PolicyStatement({
             actions: [
                 'glue:GetDatabase', 'glue:GetTable', 'glue:GetTables', 'glue:GetPartitions',
                 'glue:CreateTable', 'glue:UpdateTable', 'glue:BatchCreatePartition',
+                'glue:DeleteTable', 'glue:DeletePartition', 'glue:BatchDeletePartition',
             ],
             resources: ['*'],
         }));
