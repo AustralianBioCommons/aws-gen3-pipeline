@@ -92,9 +92,25 @@ export class Ec2JobRunnerStack extends cdk.Stack {
                 `arn:aws:secretsmanager:${region}:${accountId}:secret:${config.gen3.awsSecretName}*`,
             ],
         }));
+        // logs:CreateLogGroup is REQUIRED even though CDK creates the group:
+        // the SSM agent's CloudWatch output plugin always calls CreateLogGroup
+        // (create-if-missing) before streaming, and on AccessDenied it silently
+        // abandons streaming altogether — `g3dt jobs logs` then tails an empty
+        // group forever while the job's output survives only in the on-box tee
+        // (~/.g3dt/logs/). Observed live on acdc/staging (agent errors.log).
+        // CreateLogGroup authorizes against the BARE log-group ARN (no :*
+        // suffix), which logGroup.logGroupArn does not match — hence the
+        // explicitly constructed resource.
         role.addToPolicy(new iam.PolicyStatement({
-            actions: ['logs:CreateLogStream', 'logs:PutLogEvents', 'logs:DescribeLogStreams'],
-            resources: [logGroup.logGroupArn, `${logGroup.logGroupArn}:*`],
+            actions: [
+                'logs:CreateLogGroup', 'logs:CreateLogStream',
+                'logs:PutLogEvents', 'logs:DescribeLogStreams',
+            ],
+            resources: [
+                `arn:aws:logs:${region}:${accountId}:log-group:${names.ec2.logGroup}`,
+                logGroup.logGroupArn,
+                `${logGroup.logGroupArn}:*`,
+            ],
         }));
         // The CLI on the box resolves names from its own env's SSM tree.
         // BOTH resources are required: GetParametersByPath authorizes against
