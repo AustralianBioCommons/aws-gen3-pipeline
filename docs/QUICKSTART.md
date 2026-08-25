@@ -47,6 +47,17 @@ matter: `accountId`, `region`, `repo.fullName` (your dbt repo) +
 `gen3.*` facts ([RUNBOOK step 3](RUNBOOK.md#3-fill-in-the-config), field
 reference [CONFIG_GUIDE.md](CONFIG_GUIDE.md)). Commit and push.
 
+> **Why there's an EC2 box, and what it needs network-wise.** The box gives
+> operators a persistent machine for the long-running Gen3 metadata
+> upload/delete jobs — sheepdog's submission API is a bottleneck and parallel
+> submission easily overloads it, so submissions run serially for hours and
+> must not depend on a laptop staying open. That means the box must be able
+> to reach the target Gen3 APIs: if they are **public**, the default config
+> works as-is; if they are only reachable **via VPN**, set
+> `network.gen3ApiAccess` to `peered` so the pipeline VPC is peered into the
+> Gen3 VPC ([CONFIG_GUIDE.md section 3.2](CONFIG_GUIDE.md),
+> [VPC_NETWORKING.md section 5a](VPC_NETWORKING.md)).
+
 **5. Bootstrap (once per account+region) and deploy**
 ([RUNBOOK step 4](RUNBOOK.md#4-first-deploy)):
 

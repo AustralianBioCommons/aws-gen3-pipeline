@@ -174,6 +174,12 @@ These four drive every derived name: buckets are
 
 ### 3.2 `network` — the pipeline's own VPC
 
+The VPC exists to give the pipeline's compute — above all the EC2 job box
+(section 3.4), which runs the long Gen3 metadata upload/delete jobs — a network
+path to your Gen3 APIs. How it reaches them is the `gen3ApiAccess` choice below:
+`public` when the commons API is internet-facing, `peered` (a VPC peering into
+the Gen3 VPC) when it is only reachable via VPN.
+
 The pipeline **creates its own VPC** (public+private subnets across 2 AZs, one NAT
 gateway ≈ US$50/month, S3 gateway endpoint, two zero-ingress security groups). You
 never supply VPC/subnet/SG ids. Full design: [VPC_NETWORKING.md Section 5](VPC_NETWORKING.md).
@@ -252,6 +258,16 @@ The handshake (step 2) is the only part that cannot be done from the CLI — it 
 a browser session with rights on both the AWS account and the GitHub org.
 
 ### 3.4 `ec2` — the job-runner box
+
+**Why it exists:** the box is the operators' persistent machine for the
+long-running Gen3 metadata upload and delete jobs. Sheepdog's data submission
+API is a bottleneck — parallel submission can easily overload it — so
+submissions run serially, often for hours, and must not depend on anyone's
+laptop staying open. **What it requires network-wise:** the box must be able
+to reach the target Gen3 APIs. Publicly accessible APIs work with the default
+`network.gen3ApiAccess: public` (the NAT path); APIs only reachable via VPN
+require `peered` — a VPC peering between the pipeline's VPC and the Gen3
+deployment's VPC (section 3.2, [VPC_NETWORKING.md section 5a](VPC_NETWORKING.md)).
 
 One SSM-managed instance per env; the `g3dt` CLI dispatches long metadata jobs
 to it. No SSH, no git credentials — bootstrap is pip via user-data.
