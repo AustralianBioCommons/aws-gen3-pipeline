@@ -154,4 +154,40 @@ describe('Glue ETL role — runtime grants the scripts need', () => {
         expect(resources).toContain(`parameter/${config.projectId}/${config.environment}"`);
         expect(resources).toContain(`parameter/${config.projectId}/${config.environment}/*`);
     });
+
+    it('has no receive-bucket grant when dataReceiveBuckets is absent', () => {
+        // The base fixture omits the key — no tagging read should exist.
+        expect(JSON.stringify(statements)).not.toContain('s3:GetObjectTagging');
+    });
+});
+
+describe('Data receive buckets — the read-only grant contract', () => {
+    // dataReceiveBuckets lists provider-owned deposit buckets. The contract
+    // is READ-ONLY forever: List/GetBucketLocation/GetObject plus
+    // GetObjectTagging (tag-driven ingest discovery), and never a mutating
+    // action. The read-only pin is asserted here so widening the grant must
+    // be a visible, deliberate test edit.
+    const bucket = 'myproject-data-receive-bucket';
+    const appWithBuckets = new cdk.App();
+    const withBuckets = buildApp(appWithBuckets, { ...config, dataReceiveBuckets: [bucket] });
+    const stmts = Object.values(
+        Template.fromStack(withBuckets.stacks.iamRoles).findResources('AWS::IAM::Policy'),
+    ).flatMap((p) => p.Properties?.PolicyDocument?.Statement ?? []);
+    const grant = stmts.find((s) =>
+        JSON.stringify(s.Action ?? '').includes('s3:GetObjectTagging'));
+
+    it('grants the four read actions on the bucket AND its objects', () => {
+        expect(grant).toBeDefined();
+        const actions = JSON.stringify(grant.Action);
+        for (const a of ['s3:ListBucket', 's3:GetBucketLocation', 's3:GetObject', 's3:GetObjectTagging']) {
+            expect(actions).toContain(a);
+        }
+        const resources = JSON.stringify(grant.Resource);
+        expect(resources).toContain(`arn:aws:s3:::${bucket}"`);
+        expect(resources).toContain(`arn:aws:s3:::${bucket}/*`);
+    });
+
+    it('is pinned read-only — no Put/Delete/multipart actions in the statement', () => {
+        expect(JSON.stringify(grant.Action)).not.toMatch(/s3:(Put|Delete|Abort)/);
+    });
 });

@@ -123,6 +123,10 @@ Copy this, then fill every `<-` using Section 3:
   //   ],
   //   "etlCronjob": "etl-cronjob"
   // }
+
+  // "dataReceiveBuckets": [           //  Section 3.9 — OMIT unless ingest jobs
+  //   "myproject-data-receive-bucket" //  scan provider-owned deposit buckets.
+  // ]                                 //  Read-only grant; bare names only.
 }
 ```
 
@@ -150,6 +154,7 @@ Checklist (details for every row in Section 3):
 | 27 | `llm.model` | optional | string | Model id for synthetic-data generation — required if the `llm` block is present (Section 3.7) |
 | 28 | `k8s.schemaRestartServices` | optional | string[] | Deployments the toolkit restarts after a schema change, in order (Section 3.8) |
 | 29 | `k8s.etlCronjob` | optional | string | The ETL cronjob the toolkit's restart-etl flow runs (Section 3.8) |
+| 30 | `dataReceiveBuckets` | optional | string[] | External deposit buckets granted read-only to the Glue ETL role (Section 3.9) |
 
 ---
 
@@ -367,6 +372,44 @@ Use this when a commons manages some service outside the standard flow: e.g.
 a deployment that redeploys its frontend container manually would list only
 `sheepdog-deployment, peregrine-deployment, guppy-deployment` — the restarts
 then never touch the portal.
+
+### 3.9 `dataReceiveBuckets` — data receive buckets (optional)
+
+External S3 buckets where **data providers deposit raw deliveries** — owned
+and managed outside this pipeline (they are inputs, never pipeline
+resources; the stacks neither create nor delete them). Ingest jobs that scan
+such a bucket (e.g. a custom legacy-files job built on the toolkit's
+tag-driven `g3dt.ingest` utilities) need read access the Glue ETL role does
+not otherwise have: its S3 grant covers only the six pipeline-owned buckets.
+
+Each listed bucket is granted **read-only** to the Glue ETL role:
+
+| Action | Why |
+|---|---|
+| `s3:ListBucket`, `s3:GetBucketLocation` | Enumerate the delivery prefix |
+| `s3:GetObject` | Read the delivery files |
+| `s3:GetObjectTagging` | Tag-driven ingest discovery — the toolkit scans for objects tagged `ingest=true` |
+
+**The grant is read-only by contract**: the pipeline must never write to,
+re-tag, or delete from a receive bucket, and a test
+(`test/glue-jobs.test.ts`, "read-only grant contract") pins the statement to
+these four actions — widening it must be a visible, deliberate test edit.
+
+Rules and gotchas:
+
+- **Bare bucket names only** — no `s3://` prefix, no path suffix; the values
+  go directly into IAM resource ARNs and are validated at config load.
+- A bucket in **another AWS account** additionally needs its own bucket
+  policy allowing the role (deterministic name:
+  `<project>-<env>-glue-etl-role`) — this config key is only the
+  identity-policy half of cross-account access.
+- Adding or removing a bucket is a config edit + `cdk deploy` of the IAM
+  roles stack — no code change.
+- If per-bucket options (prefix scoping, KMS keys) are ever needed, the key
+  can evolve from `string[]` to an object list as a minor release.
+
+See [INGESTION.md](INGESTION.md#pointing-ingestion-at-a-different-bucket-or-prefix)
+for the runtime side (`--S3_BUCKET`, custom ingest jobs).
 
 ---
 

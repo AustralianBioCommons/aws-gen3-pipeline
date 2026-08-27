@@ -101,7 +101,34 @@ function validate(parsed: unknown): InputConfig {
     validateLlm(cfg);
     validateK8s(cfg);
     validateCustomJobs(cfg);
+    validateDataReceiveBuckets(cfg);
     return cfg;
+}
+
+// Data receive buckets are granted straight into the Glue ETL role's IAM
+// policy, so a malformed name would either corrupt the bucket ARN or grant
+// the wrong resource — reject it here with the offending value named. Bare
+// bucket names only: an s3:// URI or a path would silently become part of
+// the ARN string.
+function validateDataReceiveBuckets(cfg: InputConfig): void {
+    if (cfg.dataReceiveBuckets === undefined) return;
+    if (!Array.isArray(cfg.dataReceiveBuckets) || cfg.dataReceiveBuckets.length === 0) {
+        throw new Error('dataReceiveBuckets is present but empty — list at least '
+            + 'one bucket name, or remove the key');
+    }
+    const seen = new Set<string>();
+    for (const bucket of cfg.dataReceiveBuckets) {
+        if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket ?? '')) {
+            throw new Error(
+                `dataReceiveBuckets entry ${JSON.stringify(bucket)} is not a bare S3 `
+                + 'bucket name (no "s3://" prefix, no "/", lowercase letters, digits, '
+                + 'dots and hyphens only)');
+        }
+        if (seen.has(bucket)) {
+            throw new Error(`dataReceiveBuckets has duplicate entry "${bucket}"`);
+        }
+        seen.add(bucket);
+    }
 }
 
 // The k8s block is optional (absent means the toolkit's classic Gen3 restart

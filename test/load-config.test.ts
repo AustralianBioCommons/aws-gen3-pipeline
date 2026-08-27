@@ -182,3 +182,43 @@ describe('loadConfig — optional k8s block validation', () => {
             .toThrow(/non-empty array of/);
     });
 });
+
+describe('loadConfig — optional dataReceiveBuckets validation', () => {
+    // dataReceiveBuckets grants provider-owned deposit buckets READ-ONLY to
+    // the Glue ETL role. The names go straight into IAM resource ARNs, so a
+    // URI or path would silently corrupt the grant — rejected at load time
+    // with the offending value named.
+    const base = JSON.parse(
+        fs.readFileSync(path.join(__dirname, 'fixtures', 'pipeline-config.json'), 'utf-8'),
+    );
+
+    const loadWithBuckets = (dataReceiveBuckets: unknown) =>
+        loadConfig(new cdk.App({ context: { pipelineConfig: { ...base, dataReceiveBuckets } } }));
+
+    it('a config without the key loads (the key is optional)', () => {
+        const cfg = loadConfig(new cdk.App({ context: { pipelineConfig: base } }));
+        expect(cfg.dataReceiveBuckets).toBeUndefined();
+    });
+
+    it('a well-formed bucket list loads', () => {
+        const cfg = loadWithBuckets(['myproject-data-receive-bucket', 'other-deposit-bucket']);
+        expect(cfg.dataReceiveBuckets).toHaveLength(2);
+    });
+
+    it('a present-but-empty list is rejected (nothing to grant)', () => {
+        expect(() => loadWithBuckets([])).toThrow(/present but empty/);
+    });
+
+    it('an s3:// URI or a path is rejected (bare bucket names only)', () => {
+        expect(() => loadWithBuckets(['s3://myproject-data-receive-bucket']))
+            .toThrow(/not a bare S3 bucket name/);
+        expect(() => loadWithBuckets(['myproject-data-receive-bucket/data']))
+            .toThrow(/not a bare S3 bucket name/);
+    });
+
+    it('duplicate entries are rejected', () => {
+        expect(() => loadWithBuckets([
+            'myproject-data-receive-bucket', 'myproject-data-receive-bucket',
+        ])).toThrow(/duplicate entry "myproject-data-receive-bucket"/);
+    });
+});

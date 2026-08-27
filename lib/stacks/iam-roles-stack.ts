@@ -54,6 +54,26 @@ export class IamRolesStack extends cdk.Stack {
             ],
         }));
 
+        // Data receive buckets: provider-owned deposit buckets, granted
+        // READ-ONLY. GetObjectTagging is required by tag-driven ingest
+        // discovery (the toolkit scans for objects tagged ingest=true).
+        // Deliberately no Put/Delete/multipart actions — the pipeline must
+        // never mutate a delivery; a test pins this statement to read-only.
+        const receiveBucketArns = (config.dataReceiveBuckets ?? [])
+            .map((b) => `arn:aws:s3:::${b}`);
+        if (receiveBucketArns.length > 0) {
+            this.glueJobRole.addToPolicy(new iam.PolicyStatement({
+                actions: [
+                    's3:ListBucket', 's3:GetBucketLocation',
+                    's3:GetObject', 's3:GetObjectTagging',
+                ],
+                resources: [
+                    ...receiveBucketArns,
+                    ...receiveBucketArns.map((arn) => `${arn}/*`),
+                ],
+            }));
+        }
+
         this.glueJobRole.addToPolicy(new iam.PolicyStatement({
             actions: [
                 'glue:GetDatabase', 'glue:GetDatabases', 'glue:GetTable', 'glue:GetTables',

@@ -55,5 +55,10 @@
       "portal-deployment"
     ],
     "etlCronjob": "etl-cronjob"
-  }
+  },
+
+  "_dataReceiveBuckets_comment": "OPTIONAL: external provider-owned deposit buckets granted READ-ONLY to the Glue ETL role (ListBucket, GetBucketLocation, GetObject, GetObjectTagging — tag-driven ingest discovery). The pipeline never writes to or deletes from these. Bare bucket names only; a cross-account bucket also needs its own bucket policy. Delete the key if no ingest job scans external buckets.",
+  "dataReceiveBuckets": [
+    "myproject-data-receive-bucket"
+  ]
 }

@@ -170,4 +170,18 @@ export interface InputConfig {
 
     /** Deployment-specific Glue jobs, in addition to the built-in ones. */
     customJobs?: CustomGlueJobConfig[];
+
+    /**
+     * OPTIONAL. External "data receive" buckets — S3 buckets where data
+     * providers deposit raw deliveries, owned and managed outside this
+     * pipeline. Each listed bucket is granted READ-ONLY to the shared Glue
+     * ETL role: s3:ListBucket, s3:GetBucketLocation, s3:GetObject, and
+     * s3:GetObjectTagging (tag-driven ingest discovery scans object tags).
+     * The pipeline never writes to or deletes from these buckets — that is
+     * the contract, and a test pins the grant to read-only actions. Bare
+     * bucket names only (no s3:// prefix, no paths). A bucket in another
+     * AWS account additionally needs its own bucket policy allowing this
+     * role — the grant here is only the identity-policy half.
+     */
+    dataReceiveBuckets?: string[];
 }
