@@ -210,7 +210,8 @@ Each study uploads from its registry path (`g3dt study show mystudy`); move
 the registry to a release with `g3dt study repoint --release 1.4.0`, or upload
 one release without moving it with `--release` (the prefix is checked in S3
 before anything is submitted). Long jobs belong on the EC2 box — add
-`--on ec2`, then watch:
+`--on ec2`, then watch (the box re-runs the toolkit version pinned by
+`toolkitVersion`, so `--release` on `--on ec2` needs that pin at ≥ 5.0.0):
 
 ```bash
 g3dt jobs list
