@@ -203,9 +203,15 @@ its results is in the toolkit README). Background in
 ```bash
 g3dt metadata upload      --study mystudy --env test           # one study
 g3dt metadata upload-all  --studies "a,b,c" --env test         # sequential, one job
+g3dt metadata upload      --study mystudy --env test --release 1.4.0   # one release, registry untouched
 ```
 
-Long jobs belong on the EC2 box — add `--on ec2`, then watch:
+Each study uploads from its registry path (`g3dt study show mystudy`); move
+the registry to a release with `g3dt study repoint --release 1.4.0`, or upload
+one release without moving it with `--release` (the prefix is checked in S3
+before anything is submitted). Long jobs belong on the EC2 box — add
+`--on ec2`, then watch (the box re-runs the toolkit version pinned by
+`toolkitVersion`, so `--release` on `--on ec2` needs that pin at ≥ 5.0.0):
 
 ```bash
 g3dt jobs list
@@ -213,7 +219,28 @@ g3dt jobs logs <run-id> --follow
 ```
 
 Confirmation prompts always happen **locally, before dispatch** — SSM has no
-TTY, so a remote prompt would hang forever.
+TTY, so a remote prompt would hang forever. Production uploads (single or
+bulk) require typing the context name.
+
+### Make the commons show it: restart the Gen3 services
+
+Uploads change the graph database; the portal's explorer reads an index the
+ETL builds from it. After an upload run the ETL; after a dictionary deploy
+restart the services that read the schema. All three run on your laptop
+(they open a browser for the ArgoCD SSO login) and gate production behind
+the typed context name:
+
+```bash
+g3dt k8s restart-etl    --env test                 # run the ETL, wait, read the tube log
+g3dt k8s restart-schema --env test                 # roll the schema services, serially
+g3dt k8s restart-ms     --env test                 # ETL, then the services
+```
+
+Which deployments roll, and which cronjob runs, come from the `k8s` block of
+the config ([CONFIG_GUIDE.md section 3.8](CONFIG_GUIDE.md#38-k8s--restart-targets-optional));
+`--restart-services` / `--etl-cronjob` override them for one run. None of
+these commands syncs the ArgoCD app — add `--sync` only when the app is
+behind the merged revision.
 
 ---
 
@@ -261,6 +288,7 @@ nothing else should be in progress.
 | A Glue job runs old code after a fix | The toolkit-pin coupling — [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 5 |
 | `502` on `/wts/external_oidc/` | Credential/commons mismatch, not a broken link — [OPERATIONS_DETAIL.md](OPERATIONS_DETAIL.md) section 2 |
 | Downloads `401` although records exist | Authz gap: the key's user lacks `read-storage` |
+| A `g3dt k8s` restart aborts inside `argocd app sync` (`field is immutable`, `resources require pruning`) | You passed `--sync` and the app has unrelated drift. Drop `--sync` — restarts never need it unless the app is behind the merged revision |
 
 ---
 
