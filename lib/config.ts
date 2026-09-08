@@ -111,7 +111,8 @@ export interface LlmConfig {
  * block — or either field — to keep the classic Gen3 defaults
  * (sheepdog, peregrine, guppy, portal / etl-cronjob). A commons that
  * manages a service outside this flow (e.g. a manually redeployed
- * frontend) simply leaves it out of the list.
+ * frontend) simply leaves it out of the list. None of those flows runs
+ * `argocd app sync` unless `--sync` is passed (toolkit 5.0.0+).
  */
 export interface K8sConfig {
     /** Deployment names restarted after a schema change, in order. */

@@ -368,6 +368,15 @@ Resolution precedence in `g3dt`: **CLI flags → SSM → default** — a one-off
 restart of a different set needs only
 `g3dt k8s restart-schema -e <env> --restart-services <names>`, no redeploy.
 
+**ArgoCD sync is opt-in** (gen3-dataops-toolkit ≥ 5.0.0). None of these flows
+runs `argocd app sync` before restarting; pass `--sync` (on `restart-schema`,
+`restart-etl`, `restart-ms`, `dict deploy` and `synth deploy`) only when the
+commons app is behind the merged revision. A sync that fails on unrelated
+drift — for example a Job whose pod template changed, which Kubernetes
+refuses to patch — aborts the command before anything restarts. Before 5.0.0
+`restart-ms` and `synth deploy` always synced first, and `restart-ms` ignored
+`--restart-services`.
+
 Use this when a commons manages some service outside the standard flow: e.g.
 a deployment that redeploys its frontend container manually would list only
 `sheepdog-deployment, peregrine-deployment, guppy-deployment` — the restarts

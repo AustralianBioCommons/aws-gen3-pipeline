@@ -20,7 +20,7 @@ release notes):
 | Component | This runbook assumes |
 |---|---|
 | aws-gen3-pipeline | ≥ v3.0.0 |
-| gen3-dataops-toolkit | ≥ 3.3.0 |
+| gen3-dataops-toolkit | ≥ 3.3.0 (≥ 5.0.0 for opt-in `--sync` on restarts, `metadata upload --release`, and the S3 check on `study set --path`) |
 | gen3-validator | ≥ 2.2.0 (resolved automatically as a toolkit dependency) |
 | gen3-dbt-template | silver-generators revision or later |
 

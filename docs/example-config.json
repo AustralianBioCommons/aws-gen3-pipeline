@@ -46,7 +46,7 @@
     "model": "claude-opus-5"
   },
 
-  "_k8s_comment": "OPTIONAL block: which deployments g3dt's restart flows (restart-schema/restart-ms/dict deploy/synth deploy) target, restarted serially in this order, and the ETL cronjob restart-etl runs. Delete the block for the classic Gen3 set; drop a service from the list if it is managed outside these flows.",
+  "_k8s_comment": "OPTIONAL block: which deployments g3dt's restart flows (restart-schema/restart-ms/dict deploy/synth deploy) target, restarted serially in this order, and the ETL cronjob restart-etl runs. Delete the block for the classic Gen3 set; drop a service from the list if it is managed outside these flows. None of these flows syncs ArgoCD unless --sync is passed (toolkit 5.0.0+).",
   "k8s": {
     "schemaRestartServices": [
       "sheepdog-deployment",
