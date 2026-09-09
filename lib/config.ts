@@ -8,11 +8,11 @@
 
 /**
  * How the pipeline VPC reaches the Gen3 commons REST API. This varies per
- * environment: test/prod commons are usually internet-facing ("public" — the
- * NAT path just works), while staging commons sit behind an internal ALB that
- * a devops engineer normally exposes via VPN ("peered" — the CDK creates a
- * VPC peering into the Gen3 VPC instead; see docs/VPC_NETWORKING.md section 5a for
- * the Gen3-side steps that complete the link).
+ * deployment: an internet-facing commons needs nothing extra ("public" — the
+ * NAT path just works), while a commons behind an internal ALB that is only
+ * reachable over VPN needs "peered" — the CDK creates a VPC peering into the
+ * Gen3 VPC instead; see docs/VPC_NETWORKING.md section 3 for the Gen3-side
+ * steps that complete the link.
  */
 export interface Gen3ApiAccessConfig {
     mode: 'public' | 'peered';

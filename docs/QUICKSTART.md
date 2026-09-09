@@ -56,7 +56,7 @@ reference [CONFIG_GUIDE.md](CONFIG_GUIDE.md)). Commit and push.
 > works as-is; if they are only reachable **via VPN**, set
 > `network.gen3ApiAccess` to `peered` so the pipeline VPC is peered into the
 > Gen3 VPC ([CONFIG_GUIDE.md section 3.2](CONFIG_GUIDE.md),
-> [VPC_NETWORKING.md section 5a](VPC_NETWORKING.md)).
+> [VPC_NETWORKING.md section 3](VPC_NETWORKING.md)).
 
 **5. Bootstrap (once per account+region) and deploy**
 ([RUNBOOK step 4](RUNBOOK.md#4-first-deploy)):

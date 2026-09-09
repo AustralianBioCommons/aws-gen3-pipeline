@@ -4,9 +4,8 @@ The layer beneath [OPERATIONS.md](OPERATIONS.md). Read that first for *what to
 run*; read this when something behaves unexpectedly, or before changing anything
 structural.
 
-Most of what follows was learned by breaking it in production on the legacy
-pipeline this platform replaced. Where a gap still exists in this platform it is
-marked **GAP**.
+Most of what follows was learned the hard way on earlier deployments. Where a
+gap still exists in this platform it is marked **GAP**.
 
 ---
 
@@ -52,8 +51,8 @@ immediately suffixed with `/api/v0`.
 
 **GAP — cross-account topologies.** A deployment can legitimately put the data
 plane (buckets, the Athena audit table) in one account and the Gen3 API in
-another. The legacy pipeline handles this with an env pairing one account's AWS
-profile with the other's API key. `g3dt` cannot express it: `resolve_env`
+another. The natural expression is an env that pairs one account's AWS profile
+with the other's API key. `g3dt` cannot express it: `resolve_env`
 resolves against SSM `/{project}/{base}/…`, and a compound env name has no tree.
 
 ---
@@ -180,14 +179,14 @@ console-script call, which re-enters the same code path with `on=local`.
 Consequences worth knowing:
 
 - **There is no repo on the box to drift**, and no `git pull` in the path. The
-  toolkit version is whatever CDK pinned. (The legacy monolith did `cd repo &&
-  git pull && poetry run …`; this model is deliberately simpler for handover.)
+  toolkit version is whatever CDK pinned. (The alternative — a checkout on the
+  box with `git pull` before every run — is deliberately avoided; this model is
+  simpler to hand over.)
 - **Confirmation happens locally, before dispatch.** SSM has no TTY, so a remote
   prompt would hang forever. Any typed prod confirmation is resolved on your
   laptop and only then is the job sent.
 - **Remote argv is `shlex.quote`d.** Arguments containing spaces or shell
-  metacharacters are safe. (The monolith does *not* do this — that is one of the
-  two places this platform is ahead.)
+  metacharacters are safe.
 - Logs go to `~/.g3dt/logs/<run-id>.log` on the box and stream via
   `g3dt jobs logs <run-id> --follow`.
 
@@ -227,9 +226,8 @@ survives.
    reported as **skipped** — indistinguishable from a healthy no-op.
 2. `--version` is one global value, so studies at different versions need one
    job each.
-3. Uploads are purely additive with no duplicate check — the legacy deployment
-   has a version sitting at exactly 2× its expected record count from an
-   unnoticed re-run.
+3. Uploads are purely additive with no duplicate check — an unnoticed re-run
+   leaves a version sitting at exactly 2× its expected record count.
 
 ---
 
@@ -237,8 +235,8 @@ survives.
 
 Registration is **not idempotent**, despite what the docstring says. `baseid` is
 a deterministic UUIDv5 of the filename, so re-submitting creates a **new revision
-with a new `did`**, and the registry (merging on `did`) inserts a row every run.
-On the legacy deployment this produced 46,598 rows for 23,295 unique files.
+with a new `did`**, and the registry (merging on `did`) inserts a row every run —
+so a registry can quietly end up with two rows per unique file.
 
 Downstream joins must therefore de-duplicate by `registered_at`
 (`ROW_NUMBER() … ORDER BY registered_at DESC`) — and that stays necessary even
@@ -246,10 +244,10 @@ once a skip is added, because of the revisions already accumulated.
 
 **Registration succeeding does not mean files download.** The signed-URL step
 needs `read-storage` on the record's authz resource, which is a *separate* grant
-from the `create` used to register and submit. On the legacy production commons
-every object returned `401` at that step while registration and submission
-worked perfectly — every `object_id` link in the release would have been dead on
-arrival, discoverable only by user report.
+from the `create` used to register and submit. It is entirely possible for every
+object to return `401` at that step while registration and submission work
+perfectly — every `object_id` link in the release would be dead on arrival,
+discoverable only by user report.
 
 Interpreting a failed check: `404` = not registered; empty `urls` = no storage
 location; **`401` = authorization gap, not a broken key**; `500` = Fence fault.

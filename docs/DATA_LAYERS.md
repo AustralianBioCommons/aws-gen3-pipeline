@@ -220,11 +220,10 @@ Idempotency lives at the bronze→silver promotion instead: dedup on `row_hash`,
 newest `_src_ingested_at` wins (the dbt template ships this as the
 `dedupe_bronze` macro and a reference staging model). Editing a cell produces a
 new hash, so corrections land as new rows and the original stays traceable.
-Silver stays protected from the legacy pipeline's double-ingest failure — an
-additive-by-default registration that silently doubled its corpus on re-run —
-while bronze keeps the provenance a bronze-level MERGE would have destroyed
-(re-ingest used to overwrite `_src_ingested_at` in place, erasing the record of
-earlier batches).
+This protects silver from the classic double-ingest failure — an
+additive-by-default load that silently doubles its corpus on re-run — while
+bronze keeps the provenance a bronze-level MERGE would destroy (overwriting
+`_src_ingested_at` in place erases the record of earlier batches).
 
 Including the coordinates in the hash is deliberate: two genuinely different
 rows carrying identical values (a repeated measurement) stay distinct.
@@ -251,6 +250,8 @@ from g3dt.ingest.ingest import (
     prepare_ingest_metadata,    # provenance columns: source uri, tags, row hash, ingest time
     compute_row_hash,           # stable row identity, for idempotent re-ingest
     normalise,                  # column names -> snake_case, Athena-safe
+    ingest_table_to_dataset,    # write a frame as an Iceberg (default) or Parquet bronze table
+    ingest_files_to_dataset,    # the same for a set of source files, end to end
 )
 ```
 
@@ -267,30 +268,13 @@ they generate deterministic synthetic data in SQL at the silver layer, so a
 freshly deployed environment has something to run before any real data
 arrives — without dbt ever writing bronze.
 
-### The toolkit's copy is behind the monolith
+### Keep the deployed script generated from the repo
 
-`g3dt/ingest/ingest.py` was split from the legacy monolith on 2026-07-15 and has
-not tracked the fixes made since. Missing, in rough order of value:
-
-| Gap | What it does | Legacy commit |
-|---|---|---|
-| `ingest_table_to_dataset` / `ingest_files_to_dataset` | The two top-level entry points. g3dt only has the older `*_to_parquet_dataset` forms, so **writing bronze as Iceberg is not reachable from the toolkit at all** | `cc64b47` |
-| `table_format` flag | Selects Parquet or Iceberg per call (17 references in the monolith, 0 in g3dt) | `cc64b47` |
-| Parallel S3 tag scan | `get_ingest_true_files(..., max_workers=32)` — the tag lookup is per-object and serial in g3dt | `21fdbee` |
-| `openpyxl>=3.1.0` runtime pin | xlsx reading exists in g3dt but the dependency is undeclared, so it fails at runtime rather than at install | `2d0b4ce` |
-
-(The commit hashes refer to the legacy private repo the toolkit was split from.)
-Porting these is mechanical — the module is otherwise near-identical — and it
-is the difference between "bronze can be Iceberg" and "bronze is Parquet only".
-
-### One practice worth carrying across
-
-The legacy pipeline's ingest once had a **missing comma in a Python exclude list**, which
-silently un-excluded two tables, and the deployed Glue script had been edited in
-the console away from the repo — so the deployed behaviour and the reviewed
-behaviour had quietly diverged. Whatever ingestion you build, **keep the
-deployed artifact generated from the repo** (as `glue-scripts/` is here), so a
-console edit cannot become the real behaviour.
+A **missing comma in a Python exclude list** silently un-excludes tables, and a
+Glue script edited in the console drifts away from the repo — so the deployed
+behaviour and the reviewed behaviour quietly diverge. Whatever ingestion you
+build, **keep the deployed artifact generated from the repo** (as
+`glue-scripts/` is here), so a console edit cannot become the real behaviour.
 
 ## See also
 

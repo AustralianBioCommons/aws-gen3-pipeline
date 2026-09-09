@@ -47,10 +47,9 @@ export class CodeBuildStack extends cdk.Stack {
             assumedBy: new iam.ServicePrincipal('codebuild.amazonaws.com'),
         });
 
-        // Data permissions modelled on the proven manual staging role
-        // (dbt-test-and-run service-role policy in the legacy deployment), translated
-        // to derived names: dbt reads bronze, writes silver/gold/metadata/
-        // validation, and runs everything through the env's Athena workgroup.
+        // Data permissions, expressed in derived names: dbt reads bronze,
+        // writes silver/gold/metadata/validation, and runs everything through
+        // the env's Athena workgroup.
         // Bronze is read-only by design: it holds externally-ingested input
         // only, and the template's synthetic demo data is generated at the
         // silver layer. The ingest Glue job writes bronze through its own
