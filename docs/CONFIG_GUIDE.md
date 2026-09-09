@@ -189,12 +189,19 @@ The pipeline **creates its own VPC** (public+private subnets across 2 AZs, one N
 gateway ≈ US$50/month, S3 gateway endpoint, two zero-ingress security groups). You
 never supply VPC/subnet/SG ids. Full design: [VPC_NETWORKING.md Section 2](VPC_NETWORKING.md).
 
+**Two CIDRs, two different VPCs.** `vpcCidr` is the **data pipeline's own VPC** — the
+one `NetworkStack` creates for the job box and CodeBuild. `peerVpcCidr` is the VPC the
+**Gen3 EKS cluster** runs in — the commons APIs are served from inside that cluster. In
+`peered` mode the CDK creates a peering connection between the two, so the pipeline's
+components have a private route into the Gen3 APIs. Never set `peerVpcCidr` to the
+pipeline's own range.
+
 | Field | What it does | How to find it | Gotchas |
 |---|---|---|---|
-| `vpcCidr` | Address space of the created VPC | You choose it: any private range from **/16 to /22** (the stack carves four /24 subnets from it, so /23 and smaller fail at synth; AWS caps a VPC at /16). The default `10.20.0.0/16` is fine for a fresh account — confirm nothing else in the account uses it: `aws ec2 describe-vpcs --profile <p> --query 'Vpcs[].[VpcId,CidrBlock,Tags[?Key==`Name`]\|[0].Value]' --output table` | Overlap only matters if you peer — but peered Gen3 access **requires** non-overlap with the Gen3 VPC, so avoid it always (the lookup command shows what is already taken in the account) |
+| `vpcCidr` | Address space of the **data pipeline's own** VPC, which `NetworkStack` creates | You choose it: any private range from **/16 to /22** (the stack carves four /24 subnets from it, so /23 and smaller fail at synth; AWS caps a VPC at /16). The default `10.20.0.0/16` is fine for a fresh account — confirm nothing else in the account uses it: `aws ec2 describe-vpcs --profile <p> --query 'Vpcs[].[VpcId,CidrBlock,Tags[?Key==`Name`]\|[0].Value]' --output table`. For an environment that is already deployed, read it off the `<project>-<env>-network` CloudFormation stack (Resources tab, the `PipelineVpc…` VPC) | Overlap only matters if you peer — but peered Gen3 access **requires** non-overlap with the Gen3 VPC, so avoid it always (the lookup command shows what is already taken in the account) |
 | `gen3ApiAccess.mode` | How the EC2 job box reaches the Gen3 commons REST API | Decision table below | Defaults to `public`. Getting this wrong = `metadata upload` times out (box deploys fine, uploads fail) |
-| `gen3ApiAccess.peerVpcId` | Gen3 VPC to peer with (peered mode only) | `aws ec2 describe-vpcs --profile <p> --filters Name=tag:Name,Values=<gen3-vpc-name> --query 'Vpcs[].[VpcId,CidrBlock]'` — ask whoever operates the commons for the VPC name | Same account + region only (the CDK auto-accepts the peering) |
-| `gen3ApiAccess.peerVpcCidr` | Destination for the peering route | Same command as above (second column) | — |
+| `gen3ApiAccess.peerVpcId` | The VPC the Gen3 EKS cluster runs in (peered mode only) | From the cluster named in `gen3.clusterName`: `aws eks describe-cluster --profile <p> --name <clusterName> --query cluster.resourcesVpcConfig.vpcId --output text` | Same account + region only (the CDK auto-accepts the peering) |
+| `gen3ApiAccess.peerVpcCidr` | CIDR of that Gen3 VPC — the destination of the peering route from every pipeline private subnet | `aws ec2 describe-vpcs --profile <p> --vpc-ids <peerVpcId> --query 'Vpcs[].CidrBlock' --output text` | Must be the Gen3 VPC's whole CIDR, not the pipeline's `vpcCidr` |
 
 **Choosing the mode** — "is the Gen3 commons API public in this environment?"
 
@@ -434,7 +441,7 @@ for whatever your account returns.
 | Account | `aws sts get-caller-identity --profile <your-profile> --query Account --output text` | `123456789012` |
 | CIDR check | `aws ec2 describe-vpcs …` → list the CIDRs already in use | `10.20.0.0/16` is free ✓ |
 | Gen3 API mode | Laptop needs the VPN to reach the commons; `dig` on its host returns private 10.x IPs | `peered` |
-| Peer VPC | `aws ec2 describe-vpcs --filters Name=tag:Name,Values=<gen3-vpc-name> …` | `vpc-0123456789abcdef0`, `10.50.0.0/16` |
+| Peer VPC | `aws eks describe-cluster --name <clusterName> --query cluster.resourcesVpcConfig.vpcId`, then `aws ec2 describe-vpcs --vpc-ids <that id>` | `vpc-0123456789abcdef0`, `10.50.0.0/16` |
 | Connection | `aws codeconnections list-connections …` | `<org>-github`, AVAILABLE, `…connection/00000000-0000-0000-0000-000000000000` |
 | AMI | `aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64 …` | `ami-00000000000000000` (yours is the real current id) |
 | Key pair | skip — SSM-only access | (omitted) |

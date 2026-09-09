@@ -129,6 +129,21 @@ curl -s -o /dev/null -w '%{http_code}\n' https://<commons-api-hostname>/_status 
 | `{ "mode": "public" }` (default) | The commons API is internet-facing | Nothing extra; the NAT path covers it |
 | `{ "mode": "peered", "peerVpcId": "vpc-…", "peerVpcCidr": "<gen3-vpc-cidr>" }` | The commons API is internal / VPN-secured | Creates a same-account **VPC peering** into the Gen3 VPC (auto-accepted) and routes `peerVpcCidr → pcx` from every private subnet — the pipeline-side half of what the VPN does for a laptop |
 
+**Which VPC is "the Gen3 VPC"?** The one the Gen3 **EKS cluster** runs in. The commons
+API is served by an internal load balancer that the cluster provisions inside that VPC,
+so peering into it is what gives the pipeline's components a route to the APIs. Find it
+from the cluster named in `gen3.clusterName`:
+
+```bash
+aws eks describe-cluster --profile <p> --name <clusterName> \
+  --query cluster.resourcesVpcConfig.vpcId --output text        # => peerVpcId
+aws ec2 describe-vpcs --profile <p> --vpc-ids <peerVpcId> \
+  --query 'Vpcs[].CidrBlock' --output text                       # => peerVpcCidr
+```
+
+`vpcCidr`, by contrast, is the **pipeline's own** VPC from section 2 — two different
+VPCs, two different ranges.
+
 DNS needs nothing (the hostname resolves publicly), and the 443-egress security group
 already permits traffic to peered CIDRs. Only **routing** is missing, and peered mode
 adds it.
@@ -145,8 +160,8 @@ Constraints:
   Gateway attachment is the scalable alternative if your organisation standardises on
   TGW; the CDK does not create one.
 - The pipeline CIDR (`network.vpcCidr`) **must not overlap** the Gen3 VPC's CIDR — a hard
-  prerequisite for peering. Confirm the Gen3 CIDR per environment when authoring its
-  config.
+  prerequisite for peering. `peerVpcCidr` must be the Gen3 VPC's whole CIDR; confirm it
+  per environment when authoring its config.
 - Gen3-facing work belongs on the EC2 box. Glue jobs run on Glue-managed networking with
   no route into any VPC, so they can never reach an internal commons.
 

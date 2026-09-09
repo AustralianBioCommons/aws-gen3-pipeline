@@ -259,10 +259,11 @@ Edit `config/<project>.<env>.json` in the wrapper (seeded from
 `docs/example-config.json`). Field-by-field reference:
 [CONFIG_GUIDE.md](CONFIG_GUIDE.md). The fields people get wrong:
 
-- `network.vpcCidr` *(optional)* — the pipeline's own VPC range. The default
+- `network.vpcCidr` *(optional)* — the **pipeline's own** VPC range. The default
   `10.20.0.0/16` is fine unless something in the account already uses it.
-  Must be between /16 and /22, and must not overlap the Gen3 VPC if you use
-  `gen3ApiAccess: peered`
+  Must be between /16 and /22. In `gen3ApiAccess: peered` mode the separate
+  `peerVpcCidr` is the CIDR of the VPC the **Gen3 EKS cluster** runs in, and
+  the two must not overlap
   ([CONFIG_GUIDE.md section 3.2](CONFIG_GUIDE.md#32-network--the-pipelines-own-vpc)).
 - `repo.fullName` / `branch` — **your dbt repo**, not the template.
 - `repo.codeStarConnectionArn` — from step 2.1.
