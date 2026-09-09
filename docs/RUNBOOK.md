@@ -238,7 +238,7 @@ before it can be filled in.
    > default `gen3ApiAccess: public` NAT path covers it); APIs only
    > reachable via VPN need `gen3ApiAccess: peered` — a VPC peering between
    > the pipeline's VPC and the Gen3 deployment's VPC
-   > ([VPC_NETWORKING.md section 5a](VPC_NETWORKING.md)).
+   > ([VPC_NETWORKING.md section 3](VPC_NETWORKING.md)).
 
    The suggested AMI value is the current
    Amazon Linux 2023 image in your region, which AWS publishes as a public
@@ -259,6 +259,12 @@ Edit `config/<project>.<env>.json` in the wrapper (seeded from
 `docs/example-config.json`). Field-by-field reference:
 [CONFIG_GUIDE.md](CONFIG_GUIDE.md). The fields people get wrong:
 
+- `network.vpcCidr` *(optional)* — the **pipeline's own** VPC range. The default
+  `10.20.0.0/16` is fine unless something in the account already uses it.
+  Must be between /16 and /22. In `gen3ApiAccess: peered` mode the separate
+  `peerVpcCidr` is the CIDR of the VPC the **Gen3 EKS cluster** runs in, and
+  the two must not overlap
+  ([CONFIG_GUIDE.md section 3.2](CONFIG_GUIDE.md#32-network--the-pipelines-own-vpc)).
 - `repo.fullName` / `branch` — **your dbt repo**, not the template.
 - `repo.codeStarConnectionArn` — from step 2.1.
 - `toolkitVersion` — the `gen3-dataops-toolkit` PyPI pin (currently `3.3.0`).
@@ -641,7 +647,7 @@ SELECT count(*) FROM <project>_<env>_silver_db.silver_synth1_case;
 | Validation / write-release-jsons Step Function stage fails | Check the Glue job run logs (`/aws-glue/python-jobs/output`); scripts deploy automatically on every deploy (step 4) |
 | `write-release-jsons` fails with `ConcurrentRunsExceededException` right after a release | It auto-runs post-release; your manual start collided with it. Check the newest execution — the automatic one likely SUCCEEDED |
 | dbt test errors `ICEBERG_MISSING_METADATA` after changing a model's materialization | Switching an existing Iceberg relation (e.g. incremental → table) can strand its metadata pointer — drop the old Glue table(s) and rebuild |
-| A job dispatched `--on ec2` times out connecting to the commons (`ConnectTimeoutError` to the Gen3 domain), while the same command works from a VPN'd laptop | The commons API is VPN-secured, not public — `dig +short <gen3-domain>` resolves to private `10.x` addresses. Set `network.gen3ApiAccess` to `peered` (peerVpcId/peerVpcCidr of the Gen3 VPC) and redeploy, then complete the two Gen3-side steps: a return route to the pipeline CIDR and an ALB SG allow on 443 ([VPC_NETWORKING.md section 5a](VPC_NETWORKING.md)) |
+| A job dispatched `--on ec2` times out connecting to the commons (`ConnectTimeoutError` to the Gen3 domain), while the same command works from a VPN'd laptop | The commons API is VPN-secured, not public — `dig +short <gen3-domain>` resolves to private `10.x` addresses. Set `network.gen3ApiAccess` to `peered` (peerVpcId/peerVpcCidr of the Gen3 VPC) and redeploy, then complete the two Gen3-side steps: a return route to the pipeline CIDR and an ALB SG allow on 443 ([VPC_NETWORKING.md section 3](VPC_NETWORKING.md)) |
 | Ingest job: `AccessDenied` when run with `--S3_BUCKET` | The Glue ETL role only has the pipeline's own buckets — a foreign bucket needs a read grant ([INGESTION.md](INGESTION.md#pointing-ingestion-at-a-different-bucket-or-prefix)) |
 | Ingest job rejects a workbook (`no '_g3mt' sheet`), or tables land under `bronze_unassigned_*` | Not a g3mt-generated workbook, or deposited at the prefix root instead of `submissions/<study>/` — see [INGESTION.md](INGESTION.md#troubleshooting) |
 | Release build log: `WARNING: cannot query … builds (missing IAM permission?)` | The CI wait-gate is degrading to a no-op — the pipeline deploy providing `WaitOnCiBuilds` hasn't landed; redeploy |

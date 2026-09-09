@@ -80,7 +80,7 @@ Copy this, then fill every `<-` using Section 3:
   "network": {                        //  Section 3.2 (whole block optional)
     "vpcCidr": "10.20.0.0/16",        // <- must not overlap other VPCs
     "gen3ApiAccess": {                // <- how this env reaches the Gen3 commons API
-      "mode": "public"                //   "public" (test/prod) or "peered" (VPN-secured staging)
+      "mode": "public"                //   "public" (internet-facing commons) or "peered" (VPN-secured commons)
     }
   },
 
@@ -137,7 +137,7 @@ Checklist (details for every row in Section 3):
 | 1 | `projectId` | ✅ | string | First segment of every resource name |
 | 2 | `environment` | ✅ | string | Second segment; isolates envs from each other |
 | 3 | `accountId` | ✅ | string | AWS account the stacks deploy into |
-| 4 | `region` | ✅ | string | AWS region (this pipeline: `ap-southeast-2`) |
+| 4 | `region` | ✅ | string | AWS region every resource deploys into |
 | 5 | `network.vpcCidr` | optional | CIDR | Address space of the pipeline's own VPC (default `10.20.0.0/16`) |
 | 6 | `network.gen3ApiAccess` | optional | object | `public` (default) or `peered` route to the Gen3 API |
 | 7 | `repo.fullName` | ✅ | `org/repo` | GitHub repo CodePipeline/CodeBuild check out |
@@ -175,7 +175,7 @@ These four drive every derived name: buckets are
 | `projectId` | Names every resource and the SSM tree root `/{projectId}/{env}/…` | You choose it once per project (`myproject`) | Lowercase letters/digits/dashes only (it lands in bucket names). Changing it later = a brand-new pipeline |
 | `environment` | Isolates envs — nothing collides across `test`/`staging`/`prod` | You choose it; stick to `test`, `staging`, `prod` | **Keep it short.** S3 caps bucket names at 63 chars; the names test enforces this for the three standard env names |
 | `accountId` | Pins stacks to one account; part of bucket names | `aws sts get-caller-identity --profile <p> --query Account --output text` | Verify it matches the env you *think* the profile points at — profile↔account mapping has been wrong before |
-| `region` | Region for every resource | Fixed for this project: `ap-southeast-2` | AMI ids and connection ARNs are region-scoped — they must match |
+| `region` | Region for every resource | Your choice — every resource deploys there (e.g. `ap-southeast-2`) | AMI ids and connection ARNs are region-scoped — they must match |
 
 ### 3.2 `network` — the pipeline's own VPC
 
@@ -187,27 +187,34 @@ the Gen3 VPC) when it is only reachable via VPN.
 
 The pipeline **creates its own VPC** (public+private subnets across 2 AZs, one NAT
 gateway ≈ US$50/month, S3 gateway endpoint, two zero-ingress security groups). You
-never supply VPC/subnet/SG ids. Full design: [VPC_NETWORKING.md Section 5](VPC_NETWORKING.md).
+never supply VPC/subnet/SG ids. Full design: [VPC_NETWORKING.md Section 2](VPC_NETWORKING.md).
+
+**Two CIDRs, two different VPCs.** `vpcCidr` is the **data pipeline's own VPC** — the
+one `NetworkStack` creates for the job box and CodeBuild. `peerVpcCidr` is the VPC the
+**Gen3 EKS cluster** runs in — the commons APIs are served from inside that cluster. In
+`peered` mode the CDK creates a peering connection between the two, so the pipeline's
+components have a private route into the Gen3 APIs. Never set `peerVpcCidr` to the
+pipeline's own range.
 
 | Field | What it does | How to find it | Gotchas |
 |---|---|---|---|
-| `vpcCidr` | Address space of the created VPC | Pick any private range not used by other VPCs in the account: `aws ec2 describe-vpcs --profile <p> --query 'Vpcs[].[VpcId,CidrBlock,Tags[?Key==`Name`]\|[0].Value]' --output table` | Overlap only matters if you peer — but peered Gen3 access **requires** non-overlap, so avoid it always (the lookup command shows what is already taken in the account) |
+| `vpcCidr` | Address space of the **data pipeline's own** VPC, which `NetworkStack` creates | You choose it: any private range from **/16 to /22** (the stack carves four /24 subnets from it, so /23 and smaller fail at synth; AWS caps a VPC at /16). The default `10.20.0.0/16` is fine for a fresh account — confirm nothing else in the account uses it: `aws ec2 describe-vpcs --profile <p> --query 'Vpcs[].[VpcId,CidrBlock,Tags[?Key==`Name`]\|[0].Value]' --output table`. For an environment that is already deployed, read it off the `<project>-<env>-network` CloudFormation stack (Resources tab, the `PipelineVpc…` VPC) | Overlap only matters if you peer — but peered Gen3 access **requires** non-overlap with the Gen3 VPC, so avoid it always (the lookup command shows what is already taken in the account) |
 | `gen3ApiAccess.mode` | How the EC2 job box reaches the Gen3 commons REST API | Decision table below | Defaults to `public`. Getting this wrong = `metadata upload` times out (box deploys fine, uploads fail) |
-| `gen3ApiAccess.peerVpcId` | Gen3 VPC to peer with (peered mode only) | `aws ec2 describe-vpcs --profile <p> --filters Name=tag:Name,Values=<gen3-vpc-name> --query 'Vpcs[].[VpcId,CidrBlock]'` — ask the commons' devops engineer for the VPC name | Same account + region only (the CDK auto-accepts the peering) |
-| `gen3ApiAccess.peerVpcCidr` | Destination for the peering route | Same command as above (second column) | — |
+| `gen3ApiAccess.peerVpcId` | The VPC the Gen3 EKS cluster runs in (peered mode only) | From the cluster named in `gen3.clusterName`: `aws eks describe-cluster --profile <p> --name <clusterName> --query cluster.resourcesVpcConfig.vpcId --output text` | Same account + region only (the CDK auto-accepts the peering) |
+| `gen3ApiAccess.peerVpcCidr` | CIDR of that Gen3 VPC — the destination of the peering route from every pipeline private subnet | `aws ec2 describe-vpcs --profile <p> --vpc-ids <peerVpcId> --query 'Vpcs[].CidrBlock' --output text` | Must be the Gen3 VPC's whole CIDR, not the pipeline's `vpcCidr` |
 
 **Choosing the mode** — "is the Gen3 commons API public in this environment?"
 
 | Signal | Conclusion |
 |---|---|
-| The devops engineer says you need the **VPN** to hit the API from a laptop | `peered` (typical for **staging**) |
+| You need the **VPN** to hit the API from a laptop | `peered` |
 | `dig +short <commons-api-hostname>` returns **private IPs (10.x)** | `peered` |
-| The hostname resolves to public IPs and `curl https://<host>/_status` works without VPN | `public` (typical for **test** and **prod**) |
+| The hostname resolves to public IPs and `curl https://<host>/_status` works without VPN | `public` |
 
-⚠ In **peered** mode, two steps live on the **Gen3 side** and belong to the devops
-engineer who manages the VPN: a return route (`<vpcCidr> → pcx-…`) in the Gen3 VPC's
+⚠ In **peered** mode, two steps live on the **Gen3 side** and belong to whoever
+operates the commons and its VPN: a return route (`<vpcCidr> → pcx-…`) in the Gen3 VPC's
 route tables, and a 443-allow from `<vpcCidr>` on the internal ALB's security group.
-Details + post-deploy connectivity check: [VPC_NETWORKING.md Section 5a](VPC_NETWORKING.md).
+Details + post-deploy connectivity check: [VPC_NETWORKING.md Section 3](VPC_NETWORKING.md).
 
 ### 3.3 `repo` — the dbt repository that drives CI/CD
 
@@ -272,7 +279,7 @@ laptop staying open. **What it requires network-wise:** the box must be able
 to reach the target Gen3 APIs. Publicly accessible APIs work with the default
 `network.gen3ApiAccess: public` (the NAT path); APIs only reachable via VPN
 require `peered` — a VPC peering between the pipeline's VPC and the Gen3
-deployment's VPC (section 3.2, [VPC_NETWORKING.md section 5a](VPC_NETWORKING.md)).
+deployment's VPC (section 3.2, [VPC_NETWORKING.md section 3](VPC_NETWORKING.md)).
 
 One SSM-managed instance per env; the `g3dt` CLI dispatches long metadata jobs
 to it. No SSH, no git credentials — bootstrap is pip via user-data.
@@ -304,9 +311,9 @@ the EC2 box's user-data (`pip install gen3-dataops-toolkit==<version>`), every G
 
 These describe the Gen3 deployment the pipeline serves. They are mirrored to SSM as
 `/{project}/{env}/app/*` (snake_case) so the CLI can resolve them from anywhere. The
-values are owned by the Gen3/devops side — when in doubt, ask the devops engineer who
-runs the commons. Today's authoritative source per env:
-a live sibling environment: run `g3dt config show --env <env>` (the values are mirrored to SSM `app/*`), or ask the commons' devops engineer for a new deployment.
+values are owned by the Gen3 side — when in doubt, ask whoever operates the commons.
+Authoritative sources per env: a live sibling environment (run `g3dt config show --env <env>`;
+the values are mirrored to SSM `app/*`), or the commons operators for a new deployment.
 
 | Field | Consumed by | How to find it | Gotchas |
 |---|---|---|---|
@@ -315,7 +322,7 @@ a live sibling environment: run `g3dt config show --env <env>` (the values are m
 | `dictionaryPath` | `g3dt dict pull` / `dict deploy` — path to the dictionary JSON within `schemaRepo` at the `dictionaryVersion` tag | Browse the schema repo at the tag (e.g. `dictionary/prod_dict/myproject_schema.json`) | Must exist at that exact path **in the tagged revision** — a rename in the schema repo means updating this field and redeploying |
 | `awsSecretName` | `metadata upload` / `indexd register` auth — the Secrets Manager secret holding the Gen3 API key. **This value also generates IAM**: the job box's role is granted `GetSecretValue` on exactly this secret and nothing else | Recommended name: `<project>_<env>_gen3_api_key.json` (e.g. `myproject_test_gen3_api_key.json`). Check what exists: `aws secretsmanager list-secrets --profile <p> --query 'SecretList[].Name'` | This is the secret **name**, never its value. The secret must exist in the same account with the value entered manually. Renaming the secret means updating this field **and redeploying** (the IAM grant follows the config) |
 | `schemaS3Uri` | `g3dt dict upload` — where the schema JSON lands; the validation Glue job downloads its Gen3 schema from exactly this location | sibling env / devops (e.g. `my-schema-bucket/schema.json`) | `bucket/key` form, no `s3://` prefix. Usually a Gen3-deployment bucket. **Default test dictionary**: with no commons of your own yet, copy the official public Gen3 dictionary into the pipeline's metadata bucket and point here — `curl -s https://s3.amazonaws.com/dictionary-artifacts/datadictionary/develop/schema.json \| aws s3 cp - s3://<metadata-bucket>/schema/gen3_datadictionary_develop.json` then set `<metadata-bucket>/schema/gen3_datadictionary_develop.json` (the Glue role can already read that bucket; the template's synthetic data validates against this dictionary) |
-| `domain` | `g3dt k8s` / `dict deploy` — the **ArgoCD/CD endpoint** for the commons | sibling env / devops | ⚠ Despite the name, this is *not* the commons REST API — the API URL comes from the API-key JWT. `cd.*` hostnames are typically internal (VPN) |
+| `domain` | `g3dt k8s` / `dict deploy` — the **ArgoCD/CD endpoint** for the commons | sibling env / devops | ⚠ Despite the name, this is *not* the commons REST API — the API URL comes from the API-key JWT. This hostname is often internal (VPN-only) |
 | `appName` | k8s restart ops — the Gen3 app/helm identifier | sibling env / devops (e.g. `staginggen3`) | — |
 | `namespace` | k8s restart ops — the commons' k8s namespace | sibling env / devops (e.g. `myproject`) | — |
 | `clusterName` | k8s ops — the EKS cluster running the commons | `aws eks list-clusters --profile <p>` | The cluster is Gen3 infrastructure — the pipeline never manages it |
@@ -433,13 +440,13 @@ for whatever your account returns.
 |---|---|---|
 | Account | `aws sts get-caller-identity --profile <your-profile> --query Account --output text` | `123456789012` |
 | CIDR check | `aws ec2 describe-vpcs …` → list the CIDRs already in use | `10.20.0.0/16` is free ✓ |
-| Gen3 API mode | Laptop needs the VPN in staging; `dig` on the commons host returns private 10.x IPs | `peered` |
-| Peer VPC | `aws ec2 describe-vpcs --filters Name=tag:Name,Values=<gen3-vpc-name> …` | `vpc-0123456789abcdef0`, `10.17.0.0/16` |
+| Gen3 API mode | Laptop needs the VPN to reach the commons; `dig` on its host returns private 10.x IPs | `peered` |
+| Peer VPC | `aws eks describe-cluster --name <clusterName> --query cluster.resourcesVpcConfig.vpcId`, then `aws ec2 describe-vpcs --vpc-ids <that id>` | `vpc-0123456789abcdef0`, `10.50.0.0/16` |
 | Connection | `aws codeconnections list-connections …` | `<org>-github`, AVAILABLE, `…connection/00000000-0000-0000-0000-000000000000` |
 | AMI | `aws ssm get-parameter --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64 …` | `ami-00000000000000000` (yours is the real current id) |
 | Key pair | skip — SSM-only access | (omitted) |
 | Toolkit | latest **published** toolkit release on PyPI (Section 3.5) | `3.3.0` |
-| Gen3 facts | `g3dt config show --env <env>` on a sibling env, or the commons' devops engineer | see below |
+| Gen3 facts | `g3dt config show --env <env>` on a sibling env, or whoever operates the commons | see below |
 
 ```json
 {
@@ -453,7 +460,7 @@ for whatever your account returns.
     "gen3ApiAccess": {
       "mode": "peered",
       "peerVpcId": "vpc-0123456789abcdef0",
-      "peerVpcCidr": "10.17.0.0/16"
+      "peerVpcCidr": "10.50.0.0/16"
     }
   },
 
@@ -485,8 +492,8 @@ for whatever your account returns.
 }
 ```
 
-Then hand the devops engineer the two Gen3-side peering steps from
-[VPC_NETWORKING.md Section 5a](VPC_NETWORKING.md) (return route + ALB SG allow for
+Then hand the commons operators the two Gen3-side peering steps from
+[VPC_NETWORKING.md Section 3](VPC_NETWORKING.md) (return route + ALB SG allow for
 `10.20.0.0/16`).
 
 ---
@@ -581,7 +588,7 @@ Common errors:
 | `Invalid S3 bucket name … no more than 63 characters` at synth | `environment` (or `projectId`) too long | Shorten it — the convention is length-budgeted for `test`/`staging`/`prod` |
 | Pipeline Source stage fails after deploy | Connection is PENDING, or ARN from another account | Section 3.3 — complete the console handshake |
 | EC2 instance fails to launch | AMI id stale/deregistered or wrong region | Re-run the AMI lookup (Section 3.4) |
-| Box deploys but `metadata upload` times out | Wrong `gen3ApiAccess` mode, or Gen3-side peering steps not done | Section 3.2 decision table; [VPC_NETWORKING.md Section 5a](VPC_NETWORKING.md) check #4 |
+| Box deploys but `metadata upload` times out | Wrong `gen3ApiAccess` mode, or Gen3-side peering steps not done | Section 3.2 decision table; [VPC_NETWORKING.md Section 6](VPC_NETWORKING.md) check #4 |
 | Box never shows `Online` in `aws ssm describe-instance-information` | Egress broken (NAT missing/misconfigured — shouldn't happen with the created VPC) | [VPC_NETWORKING.md Section 6](VPC_NETWORKING.md) post-deploy checks |
 
 ---

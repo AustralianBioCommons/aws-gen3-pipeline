@@ -243,7 +243,7 @@ describe('NetworkStack — peered Gen3 API access (VPN-secured environments)', (
             gen3ApiAccess: {
                 mode: 'peered',
                 peerVpcId: 'vpc-0gen3staging000000',
-                peerVpcCidr: '10.17.0.0/16',
+                peerVpcCidr: '10.50.0.0/16',
             },
         },
     };
@@ -257,7 +257,7 @@ describe('NetworkStack — peered Gen3 API access (VPN-secured environments)', (
             PeerVpcId: 'vpc-0gen3staging000000',
         });
         const routes = Object.values(netTemplate.findResources('AWS::EC2::Route'))
-            .filter((r) => r.Properties?.DestinationCidrBlock === '10.17.0.0/16');
+            .filter((r) => r.Properties?.DestinationCidrBlock === '10.50.0.0/16');
         expect(routes).toHaveLength(2); // one per private subnet (2 AZs)
         for (const r of routes) expect(r.Properties?.VpcPeeringConnectionId).toBeDefined();
     });

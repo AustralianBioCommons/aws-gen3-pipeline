@@ -8,7 +8,7 @@
 
   "network": {
     "vpcCidr": "10.20.0.0/16",
-    "_gen3ApiAccess_comment": "public = internet-facing commons (typical test/prod); peered = VPN-secured commons (typical staging) — then add peerVpcId + peerVpcCidr of the Gen3 VPC",
+    "_gen3ApiAccess_comment": "public = internet-facing commons; peered = VPN-secured commons — then add peerVpcId + peerVpcCidr of the Gen3 VPC",
     "gen3ApiAccess": { "mode": "public" }
   },
 

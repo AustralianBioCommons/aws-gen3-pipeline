@@ -80,12 +80,12 @@ export class NetworkStack extends cdk.Stack {
             'CodeBuild dbt projects - no ingress',
         );
 
-        // Gen3 API access. "public" (test/prod commons): the NAT path covers
-        // it, nothing to build. "peered" (VPN-secured staging commons): peer
+        // Gen3 API access. "public" (internet-facing commons): the NAT path
+        // covers it, nothing to build. "peered" (VPN-secured commons): peer
         // into the Gen3 VPC and route to it from our private subnets — the
         // pipeline-side half of what the VPN does for a laptop. The Gen3-side
-        // half (return route + ALB SG allow) is a devops step; see
-        // docs/VPC_NETWORKING.md section 5a.
+        // half (return route + ALB SG allow) is done by whoever operates the
+        // commons; see docs/VPC_NETWORKING.md section 3.
         if (gen3Access.mode === 'peered') {
             if (!gen3Access.peerVpcId || !gen3Access.peerVpcCidr) {
                 throw new Error(
