@@ -201,7 +201,7 @@ What the design guarantees, and where each guarantee is enforced:
 
 | Input | What to put there |
 |---|---|
-| `network.vpcCidr` (optional) | CIDR for the pipeline's own VPC (default `10.20.0.0/16`). Must not overlap other VPCs in the account (a hard requirement for peered mode). Everything else — subnets, routes, NAT, endpoints, SGs — is created by `NetworkStack`. |
+| `network.vpcCidr` (optional) | CIDR for the pipeline's own VPC (default `10.20.0.0/16`). Any private range from /16 to /22 — four /24 subnets are carved from it, so anything smaller fails at synth. Must not overlap other VPCs in the account (a hard requirement for peered mode). Everything else — subnets, routes, NAT, endpoints, SGs — is created by `NetworkStack`. |
 | `network.gen3ApiAccess` (optional) | How this env reaches the Gen3 commons API: `{ "mode": "public" }` (default; internet-facing commons) or `{ "mode": "peered", "peerVpcId": …, "peerVpcCidr": … }` for VPN-secured commons — see section 3. |
 
 Pre-deploy: check CIDR overlap (read-only):

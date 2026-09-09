@@ -137,7 +137,7 @@ Checklist (details for every row in Section 3):
 | 1 | `projectId` | ✅ | string | First segment of every resource name |
 | 2 | `environment` | ✅ | string | Second segment; isolates envs from each other |
 | 3 | `accountId` | ✅ | string | AWS account the stacks deploy into |
-| 4 | `region` | ✅ | string | AWS region (this pipeline: `ap-southeast-2`) |
+| 4 | `region` | ✅ | string | AWS region every resource deploys into |
 | 5 | `network.vpcCidr` | optional | CIDR | Address space of the pipeline's own VPC (default `10.20.0.0/16`) |
 | 6 | `network.gen3ApiAccess` | optional | object | `public` (default) or `peered` route to the Gen3 API |
 | 7 | `repo.fullName` | ✅ | `org/repo` | GitHub repo CodePipeline/CodeBuild check out |
@@ -191,7 +191,7 @@ never supply VPC/subnet/SG ids. Full design: [VPC_NETWORKING.md Section 2](VPC_N
 
 | Field | What it does | How to find it | Gotchas |
 |---|---|---|---|
-| `vpcCidr` | Address space of the created VPC | Pick any private range not used by other VPCs in the account: `aws ec2 describe-vpcs --profile <p> --query 'Vpcs[].[VpcId,CidrBlock,Tags[?Key==`Name`]\|[0].Value]' --output table` | Overlap only matters if you peer — but peered Gen3 access **requires** non-overlap, so avoid it always (the lookup command shows what is already taken in the account) |
+| `vpcCidr` | Address space of the created VPC | You choose it: any private range from **/16 to /22** (the stack carves four /24 subnets from it, so /23 and smaller fail at synth; AWS caps a VPC at /16). The default `10.20.0.0/16` is fine for a fresh account — confirm nothing else in the account uses it: `aws ec2 describe-vpcs --profile <p> --query 'Vpcs[].[VpcId,CidrBlock,Tags[?Key==`Name`]\|[0].Value]' --output table` | Overlap only matters if you peer — but peered Gen3 access **requires** non-overlap with the Gen3 VPC, so avoid it always (the lookup command shows what is already taken in the account) |
 | `gen3ApiAccess.mode` | How the EC2 job box reaches the Gen3 commons REST API | Decision table below | Defaults to `public`. Getting this wrong = `metadata upload` times out (box deploys fine, uploads fail) |
 | `gen3ApiAccess.peerVpcId` | Gen3 VPC to peer with (peered mode only) | `aws ec2 describe-vpcs --profile <p> --filters Name=tag:Name,Values=<gen3-vpc-name> --query 'Vpcs[].[VpcId,CidrBlock]'` — ask whoever operates the commons for the VPC name | Same account + region only (the CDK auto-accepts the peering) |
 | `gen3ApiAccess.peerVpcCidr` | Destination for the peering route | Same command as above (second column) | — |
